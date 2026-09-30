@@ -138,6 +138,20 @@ class SecurityTests(unittest.TestCase):
             status = powershell(PRIVATE_ACL_SCRIPT, target=path)
             self.assertEqual(status.strip() if status else "NO_OUTPUT", "OK")
 
+    @unittest.skipUnless(os.name == "nt", "native Windows only")
+    def test_windows_security_probes_return_structured_status(self) -> None:
+        from security_audit.scanners.network import WINDOWS_LISTEN_SCRIPT
+        from security_audit.scanners.os_security import WINDOWS_STATUS_SCRIPT
+        from security_audit.windows import powershell_json
+
+        status = powershell_json(WINDOWS_STATUS_SCRIPT)
+        listeners = powershell_json(WINDOWS_LISTEN_SCRIPT)
+        self.assertIsInstance(status, dict)
+        self.assertEqual(set(status or {}),
+                         {"encryption", "firewall", "antivirus", "uac", "secure_boot"})
+        self.assertIsInstance(listeners, dict)
+        self.assertIsInstance((listeners or {}).get("listeners"), list)
+
     def test_stdout_stderr_and_exception_are_redacted(self) -> None:
         fake = "FAKE_ONLY_DO_NOT_USE_abcdefgh"
         with tempfile.TemporaryDirectory() as directory:

@@ -51,7 +51,7 @@ class SecurityTests(unittest.TestCase):
             config.parent.mkdir()
             config.write_text(fake, encoding="utf-8")
             config.chmod(0o644)
-            findings = DevelopmentScanner().scan(Context(home, home))
+            findings = DevelopmentScanner().scan(Context(home, home, system="Darwin"))
             self.assertTrue(any(item.code == "DEV-003" for item in findings))
             self.assertNotIn(fake, as_json(findings))
 
@@ -128,6 +128,16 @@ class SecurityTests(unittest.TestCase):
                 write_private(destination, "FAKE_ONLY_DO_NOT_USE")
             self.assertFalse(destination.exists())
 
+    @unittest.skipUnless(os.name == "nt", "native Windows only")
+    def test_windows_private_acl_can_be_applied(self) -> None:
+        from security_audit.windows import PRIVATE_ACL_SCRIPT, powershell
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "empty-report.txt"
+            path.write_text("", encoding="utf-8")
+            status = powershell(PRIVATE_ACL_SCRIPT, target=path)
+            self.assertEqual(status.strip() if status else "NO_OUTPUT", "OK")
+
     def test_stdout_stderr_and_exception_are_redacted(self) -> None:
         fake = "FAKE_ONLY_DO_NOT_USE_abcdefgh"
         with tempfile.TemporaryDirectory() as directory:
@@ -153,7 +163,11 @@ class SecurityTests(unittest.TestCase):
                 self.assertEqual(main(["report", "api", "--format", "json", "--output",
                                        str(home / "reports" / "latest.json")]), 0)
             path = home / "reports" / "latest.json"
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            if os.name == "nt":
+                from security_audit.windows import broad_windows_acl
+                self.assertFalse(broad_windows_acl(path))
+            else:
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
     def test_report_refuses_symlink_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

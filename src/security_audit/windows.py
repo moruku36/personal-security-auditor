@@ -70,17 +70,26 @@ def broad_windows_acl(path: Path) -> bool | None:
 
 PRIVATE_ACL_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
+$phase = 'read'
 try {
   $path = $env:SECURITY_AUDIT_TARGET
   $acl = Get-Acl -LiteralPath $path
+  $phase = 'protect'
   $acl.SetAccessRuleProtection($true, $false)
+  $phase = 'purge'
   foreach ($rule in @($acl.Access)) { $acl.PurgeAccessRules($rule.IdentityReference) }
+  $phase = 'grant'
   $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-  $rule = [System.Security.AccessControl.FileSystemAccessRule]::new($identity, 'FullControl', 'Allow')
+  $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+    $identity,
+    [System.Security.AccessControl.FileSystemRights]::FullControl,
+    [System.Security.AccessControl.AccessControlType]::Allow
+  )
   $acl.AddAccessRule($rule)
+  $phase = 'save'
   Set-Acl -LiteralPath $path -AclObject $acl
   'OK'
-} catch { 'FAILED' }
+} catch { 'FAILED_' + $phase }
 """
 
 

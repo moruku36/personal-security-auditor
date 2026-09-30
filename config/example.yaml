@@ -1,0 +1,5 @@
+# Documentation only; this release has no configuration parser.
+telemetry: false
+cloud_upload: false
+remote_api: false
+secret_collection: false

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-def powershell(script: str, *, target: Path | None = None, timeout: float = 12) -> str | None:
+def powershell(script: str, *, target: Path | None = None, timeout: float = 45) -> str | None:
     root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
     executable = root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
     if not executable.is_file():
@@ -28,7 +28,7 @@ def powershell(script: str, *, target: Path | None = None, timeout: float = 12) 
     return result.stdout[:8192] if result.returncode == 0 else None
 
 
-def powershell_json(script: str, *, timeout: float = 12) -> dict[str, Any] | list[Any] | None:
+def powershell_json(script: str, *, timeout: float = 45) -> dict[str, Any] | list[Any] | None:
     output = powershell(script, timeout=timeout)
     if output is None:
         return None

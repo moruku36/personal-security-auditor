@@ -103,7 +103,7 @@ class OSScanner:
         return findings
 
     def _scan_windows(self) -> list[Finding]:
-        status = powershell_json(WINDOWS_STATUS_SCRIPT, timeout=20)
+        status = powershell_json(WINDOWS_STATUS_SCRIPT)
         if not isinstance(status, dict):
             return [Finding("OS-098", Risk.INFO, "Windows security status unavailable", "Windows",
                             "Run from Windows PowerShell with the required read permissions.")]

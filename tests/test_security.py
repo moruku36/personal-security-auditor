@@ -5,7 +5,6 @@ import io
 import json
 import logging
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -137,18 +136,6 @@ class SecurityTests(unittest.TestCase):
             path = Path(directory) / "empty-report.txt"
             path.write_text("", encoding="utf-8")
             status = powershell(PRIVATE_ACL_SCRIPT, target=path)
-            if status is None:
-                executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-                command = [str(executable), "-NoLogo", "-NoProfile", "-NonInteractive",
-                           "-Command", PRIVATE_ACL_SCRIPT]
-                safe_env = {name: value for name, value in os.environ.items()
-                            if name.upper() in {"SYSTEMROOT", "WINDIR", "SYSTEMDRIVE",
-                                                "PATH", "PATHEXT", "TEMP"}}
-                safe_env["SECURITY_AUDIT_TARGET"] = str(path)
-                result = subprocess.run(command, capture_output=True, text=True, timeout=30,
-                                        check=False, env=safe_env)
-                self.fail(f"PowerShell exit {result.returncode}: "
-                          f"stdout={result.stdout[:100]!r}, stderr={result.stderr[:500]!r}")
             self.assertEqual(status.strip() if status else "NO_OUTPUT", "OK")
 
     def test_stdout_stderr_and_exception_are_redacted(self) -> None:

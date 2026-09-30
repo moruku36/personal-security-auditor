@@ -60,7 +60,7 @@ class NetworkScanner:
         return findings
 
     def _scan_windows(self) -> list[Finding]:
-        result = powershell_json(WINDOWS_LISTEN_SCRIPT, timeout=20)
+        result = powershell_json(WINDOWS_LISTEN_SCRIPT)
         if not isinstance(result, dict) or not isinstance(result.get("listeners"), list):
             return [Finding("NET-000", Risk.INFO, "Windows listener inspection unavailable",
                             "network", "Review listening TCP ports manually.")]

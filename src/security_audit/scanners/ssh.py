@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from security_audit.model import Finding, Risk
-from security_audit.safety import label, mode
+from security_audit.permissions import broad_access
+from security_audit.safety import label
 from security_audit.scanners.base import Context
 
 
@@ -17,10 +18,14 @@ class SSHScanner:
     def scan(self, context: Context) -> list[Finding]:
         root = context.home / ".ssh"
         findings: list[Finding] = []
-        root_mode = mode(root)
-        if root_mode is not None and root_mode & 0o077:
+        root_exposure = broad_access(root, context.system)
+        if root_exposure:
             findings.append(Finding("SSH-001", Risk.HIGH, "SSH directory permissions are broad",
-                "~/.ssh", "Restrict directory mode to 0700 after reviewing access needs.", True))
+                "~/.ssh", "Restrict directory access after reviewing access needs.",
+                context.system != "Windows"))
+        elif root_exposure is None:
+            findings.append(Finding("SSH-098", Risk.INFO, "SSH directory permissions unavailable",
+                "~/.ssh", "Review directory permissions manually."))
         try:
             entries = list(root.iterdir())[:200]
         except OSError:
@@ -30,8 +35,13 @@ class SSHScanner:
                 continue
             filename = path.name
             if filename.startswith("id_") and not filename.endswith(".pub"):
-                permission = mode(path)
-                if permission is not None and permission & 0o077:
+                exposure = broad_access(path, context.system)
+                if exposure:
                     findings.append(Finding("SSH-002", Risk.HIGH, "SSH private key permissions are broad",
-                        label(path, context.home), "Restrict key mode to 0600 after reviewing access needs.", True))
+                        label(path, context.home), "Restrict key access after reviewing access needs.",
+                        context.system != "Windows"))
+                elif exposure is None:
+                    findings.append(Finding("SSH-098", Risk.INFO,
+                        "SSH private key permissions unavailable", label(path, context.home),
+                        "Review key permissions manually."))
         return findings

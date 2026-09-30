@@ -14,6 +14,8 @@ TARGET_MODES = {"SSH-001": 0o700, "SSH-002": 0o600,
 
 
 def target(context: Context, finding: Finding) -> tuple[Path, int] | None:
+    if context.system == "Windows":
+        return None
     desired = TARGET_MODES.get(finding.code)
     if desired is None or not finding.location.startswith("~/"):
         return None

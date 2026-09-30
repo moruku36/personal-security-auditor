@@ -7,7 +7,8 @@ import stat
 from pathlib import Path
 
 from security_audit.model import Finding, Risk
-from security_audit.safety import label, mode
+from security_audit.permissions import broad_access
+from security_audit.safety import label
 from security_audit.scanners.base import Context
 
 KEY = re.compile(rb"^[A-Za-z_][A-Za-z0-9_]{0,79}$")
@@ -38,6 +39,8 @@ def assignment_names(path: Path) -> set[bytes]:
                     at_start = True
                 elif collecting and byte == 61:
                     candidate = bytes(name).upper()
+                    if candidate.startswith(b"$ENV:"):
+                        candidate = candidate[5:]
                     if (KEY.fullmatch(candidate) and candidate not in NON_SECRET
                             and any(word in candidate for word in SECRET_WORDS)):
                         names.add(candidate)
@@ -68,6 +71,10 @@ class SecretScanner:
     def scan(self, context: Context) -> list[Finding]:
         home = context.home
         files = [home / name for name in (".zshrc", ".bashrc", ".bash_profile", ".profile", ".env")]
+        if context.system == "Windows":
+            files.extend(home / name for name in (
+                "Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+                "Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1"))
         files.extend(sorted(home.glob(".env.*"))[:20])
         files.extend(sorted(context.repository.glob(".env*"))[:20])
         findings: list[Finding] = []
@@ -77,10 +84,17 @@ class SecretScanner:
                 findings.append(Finding("API-001", Risk.HIGH,
                     f"{len(names)} secret-like assignment(s) in a text file",
                     label(path, home), "Review storage and rotate exposed long-lived keys."))
-            permission = mode(path)
-            if names and permission is not None and permission & 0o077:
-                findings.append(Finding("API-002", Risk.HIGH, "Credential file is accessible to others",
-                    label(path, home), "Restrict file permissions after reviewing access needs.", True))
+            if names:
+                exposure = broad_access(path, context.system)
+                if exposure:
+                    findings.append(Finding("API-002", Risk.HIGH,
+                        "Credential file is accessible to others", label(path, home),
+                        "Restrict file access after reviewing access needs.",
+                        context.system != "Windows"))
+                elif exposure is None:
+                    findings.append(Finding("API-098", Risk.INFO,
+                        "Credential file permissions unavailable", label(path, home),
+                        "Review file permissions manually."))
         count = sum(1 for key in os.environ if any(word.decode() in key.upper() for word in SECRET_WORDS))
         if count:
             findings.append(Finding("API-003", Risk.INFO,

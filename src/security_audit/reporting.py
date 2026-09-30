@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import tempfile
 from collections import Counter
 from pathlib import Path
 
 from security_audit.model import Finding, Risk
+from security_audit.windows import restrict_windows_acl
 
 
 def overall(findings: list[Finding]) -> Risk:
@@ -49,8 +51,10 @@ def write_private(path: Path, content: str) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
                                          prefix=".security-audit-", delete=False) as handle:
             temporary = Path(handle.name)
+            if platform.system() == "Windows" and not restrict_windows_acl(temporary):
+                raise OSError("Could not restrict report ACL")
+            temporary.chmod(0o600)
             handle.write(content)
-        temporary.chmod(0o600)
         os.replace(temporary, path)
     finally:
         if temporary is not None:

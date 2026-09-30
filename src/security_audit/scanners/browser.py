@@ -8,12 +8,18 @@ from security_audit.scanners.base import Context
 
 class BrowserScanner:
     category = "browser"
-    ROOTS: ClassVar[dict[str, str]] = {
+    MAC_ROOTS: ClassVar[dict[str, str]] = {
         "Chrome": "Library/Application Support/Google/Chrome",
         "Brave": "Library/Application Support/BraveSoftware/Brave-Browser",
         "Edge": "Library/Application Support/Microsoft Edge",
         "Firefox": "Library/Application Support/Firefox/Profiles",
         "Safari": "Library/Safari",
+    }
+    WINDOWS_ROOTS: ClassVar[dict[str, str]] = {
+        "Chrome": "AppData/Local/Google/Chrome/User Data",
+        "Brave": "AppData/Local/BraveSoftware/Brave-Browser/User Data",
+        "Edge": "AppData/Local/Microsoft/Edge/User Data",
+        "Firefox": "AppData/Roaming/Mozilla/Firefox/Profiles",
     }
 
     def detect(self, context: Context) -> bool:
@@ -24,7 +30,8 @@ class BrowserScanner:
 
     def scan(self, context: Context) -> list[Finding]:
         findings: list[Finding] = []
-        for browser, relative in self.ROOTS.items():
+        roots = self.WINDOWS_ROOTS if context.system == "Windows" else self.MAC_ROOTS
+        for browser, relative in roots.items():
             root = context.home / relative
             if not root.is_dir():
                 continue

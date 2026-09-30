@@ -16,11 +16,12 @@ This project provides a safe first pass before deeper manual review.
 ## Features
 
 - macOS FileVault, firewall, Gatekeeper, SIP and Remote Login checks
+- Windows drive encryption, active firewall, Defender, UAC and Secure Boot checks
 - Browser presence and extension directory counts
 - Secret-like assignment name discovery in selected shell and `.env` files
 - Git repository hygiene, SSH and cloud credential file permissions
 - Developer CLI presence and credential-store file permissions
-- Non-loopback TCP listeners and AI agent directory permissions
+- Non-loopback TCP listeners on macOS and Windows, and AI agent directory permissions
 - Terminal, Markdown and JSON reports; conservative permission fix preview
 
 ## Architecture
@@ -37,6 +38,11 @@ Python 3.11+ is required. No runtime dependencies or network access are needed.
 ```sh
 python3 -m pip install -e .
 ```
+
+On Windows, use `py -3.11 -m pip install -e .` in PowerShell. Run the CLI on
+native Windows, not WSL, to use Windows security checks. Administrator rights
+are not required for a basic scan; Secure Boot or some other statuses may be
+reported unavailable without them.
 
 ## Quick Start
 
@@ -57,7 +63,8 @@ search of direct repositories under `~/Documents` and `~/Developer`.
 
 Secret values, browser credential stores and private keys are never requested
 or included in findings. The assignment scanner discards value bytes without
-assembling them. Reports are owner-only files (0600) and ignored by Git.
+assembling them. Reports use mode 0600 on macOS and a restricted ACL on Windows,
+and are ignored by Git.
 The CLI has no telemetry, cloud upload or remote API calls. Findings may be
 incomplete; a clean report is not a security certification.
 
@@ -69,21 +76,23 @@ runner's real environment.
 
 ## Supported Platforms
 
-macOS is the current primary platform. Windows and Linux can be added through
-scanner adapters; their OS and network checks currently report incomplete.
+macOS and Windows 10/11 are supported. Windows checks use built-in Windows
+PowerShell and local APIs. Linux reports OS and network coverage as incomplete.
+Neither platform sends scan data to a remote service.
+See [Windows checks and limits](docs/windows.md) before interpreting results.
 
 ## Scanners
 
 | Category | Current coverage |
 | --- | --- |
-| `os` | Selected macOS hardening states |
-| `browser` | Browser directories and Chromium extension counts |
+| `os` | Selected macOS and Windows hardening states |
+| `browser` | macOS/Windows browser directories and Chromium extension counts |
 | `api` | Secret-like assignment names and file permissions |
 | `git` | `.gitignore` presence and history scan reminder |
-| `ssh` | Directory and key permissions |
-| `cloud` | CLI presence and credential file permissions |
-| `dev` | Developer CLI presence and local credential file permissions |
-| `network` | Non-loopback TCP listeners on macOS |
+| `ssh` | Directory and key permissions or Windows ACL review |
+| `cloud` | CLI presence and credential file permissions or Windows ACL review |
+| `dev` | Developer CLI presence and local credential file permissions or Windows ACL review |
+| `network` | Non-loopback TCP listeners on macOS and Windows |
 | `ai` | Agent directory presence and permissions |
 
 Browser version, extension permission, MFA, cloud IAM and Git history leak
@@ -98,13 +107,15 @@ exposure.
 
 ## Remediation
 
-`fix` previews changes. `fix --apply` only tightens selected file or directory
-permissions. It does not revoke credentials, change IAM or MFA, delete files,
-or remove extensions. Review each proposed change before applying it.
+On macOS, `fix` previews permission changes and `fix --apply` tightens only
+selected file or directory permissions. On Windows, ACL findings are read-only;
+`fix` does not change them. The tool does not revoke credentials, change IAM or
+MFA, delete files, or remove extensions. Review each proposed change before
+applying it.
 
 ## Roadmap
 
-- Validate macOS checks on more versions and add Windows/Linux adapters
+- Validate macOS and Windows checks on physical machines and add a Linux adapter
 - Add safe extension metadata and agent permission checks
 - Evaluate an opt-in offline Git history scanner
 - Add user-led MFA/passkey checklist and optional update checks

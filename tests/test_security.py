@@ -14,13 +14,13 @@ from security_audit import engine
 from security_audit.cli import main
 from security_audit.engine import scan
 from security_audit.model import Finding
+from security_audit.remediation import target
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private
 from security_audit.scanners.base import Context
-from security_audit.scanners.development import DevelopmentScanner
-from security_audit.scanners.os_security import OSScanner
-from security_audit.scanners.network import NetworkScanner
 from security_audit.scanners.browser import BrowserScanner
-from security_audit.remediation import target
+from security_audit.scanners.development import DevelopmentScanner
+from security_audit.scanners.network import NetworkScanner
+from security_audit.scanners.os_security import OSScanner
 from security_audit.scanners.secrets import assignment_names
 
 

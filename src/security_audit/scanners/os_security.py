@@ -7,7 +7,6 @@ from security_audit.safety import run
 from security_audit.scanners.base import Context
 from security_audit.windows import powershell_json
 
-
 WINDOWS_STATUS_SCRIPT = r"""
 $result = [ordered]@{ encryption='unknown'; firewall='unknown'; antivirus='unknown'; uac='unknown'; secure_boot='unknown' }
 try {

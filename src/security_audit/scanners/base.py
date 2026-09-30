@@ -1,9 +1,9 @@
 """Common scanner protocol and scan context."""
 from __future__ import annotations
 
+import platform
 from dataclasses import dataclass, field
 from pathlib import Path
-import platform
 from typing import Protocol
 
 from security_audit.model import Finding

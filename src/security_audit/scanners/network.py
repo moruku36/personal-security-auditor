@@ -7,7 +7,6 @@ from security_audit.safety import run
 from security_audit.scanners.base import Context
 from security_audit.windows import powershell_json
 
-
 WINDOWS_LISTEN_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop | ForEach-Object {

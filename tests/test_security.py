@@ -17,6 +17,7 @@ from security_audit.model import Finding
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private
 from security_audit.scanners.base import Context
 from security_audit.scanners.development import DevelopmentScanner
+from security_audit.scanners.os_security import OSScanner
 from security_audit.scanners.secrets import assignment_names
 
 
@@ -50,6 +51,28 @@ class SecurityTests(unittest.TestCase):
             findings = DevelopmentScanner().scan(Context(home, home))
             self.assertTrue(any(item.code == "DEV-003" for item in findings))
             self.assertNotIn(fake, as_json(findings))
+
+    def test_macos_firewall_disabled_is_high_risk(self) -> None:
+        def fake_run(argv: list[str], timeout: float = 4.0) -> tuple[int, str]:
+            if "socketfilterfw" in argv[0]:
+                return 0, "Firewall is disabled. (State = 0)"
+            return -1, ""
+
+        with (tempfile.TemporaryDirectory() as directory,
+              patch("security_audit.scanners.os_security.platform.system", return_value="Darwin"),
+              patch("security_audit.scanners.os_security.run", side_effect=fake_run),
+              patch.dict(os.environ, {}, clear=True)):
+            findings = OSScanner().scan(Context(Path(directory), Path(directory)))
+        self.assertTrue(any(item.code == "OS-002" and item.risk.value == "HIGH"
+                            for item in findings))
+
+    def test_sandbox_does_not_claim_firewall_is_disabled(self) -> None:
+        with (tempfile.TemporaryDirectory() as directory,
+              patch("security_audit.scanners.os_security.platform.system", return_value="Darwin"),
+              patch("security_audit.scanners.os_security.run", return_value=(0, "Firewall is disabled")),
+              patch.dict(os.environ, {"CODEX_SANDBOX": "seatbelt"})):
+            findings = OSScanner().scan(Context(Path(directory), Path(directory)))
+        self.assertFalse(any(item.code == "OS-002" for item in findings))
 
     def test_stdout_stderr_and_exception_are_redacted(self) -> None:
         fake = "FAKE_ONLY_DO_NOT_USE_abcdefgh"

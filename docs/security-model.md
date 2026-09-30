@@ -8,6 +8,8 @@
 - Reports contain findings only. Files are created with mode 0600 and ignored
   by Git. Path labels are restricted to safe characters.
 - The app does not claim that absence of findings means the system is safe.
+- Firewall status is marked unavailable inside a known Codex sandbox because
+  the macOS status command can return a misleading value there.
 - `fix` changes only permissions, only when `--apply` is explicitly supplied.
 
 ## Limitations

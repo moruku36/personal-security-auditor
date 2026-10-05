@@ -18,7 +18,11 @@ from security_audit.model import Finding
 from security_audit.remediation import target
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private
 from security_audit.scanners.base import Context
-from security_audit.scanners.browser import BrowserScanner, _bounded_directories, _metadata_is_reparse_point
+from security_audit.scanners.browser import (
+    BrowserScanner,
+    _bounded_directories,
+    _metadata_is_reparse_point,
+)
 from security_audit.scanners.development import DevelopmentScanner
 from security_audit.scanners.network import NetworkScanner
 from security_audit.scanners.os_security import OSScanner
@@ -232,9 +236,9 @@ class SecurityTests(unittest.TestCase):
     def test_report_rejects_reparse_point_parent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target_path = Path(directory) / "redirected" / "report.json"
-            with patch("security_audit.reporting._has_reparse_ancestor", return_value=True):
-                with self.assertRaisesRegex(ValueError, "reparse point"):
-                    write_private(target_path, "synthetic")
+            with (patch("security_audit.reporting._has_reparse_ancestor", return_value=True),
+                  self.assertRaisesRegex(ValueError, "reparse point")):
+                write_private(target_path, "synthetic")
             self.assertFalse(target_path.parent.exists())
 
     def test_windows_never_previews_chmod(self) -> None:

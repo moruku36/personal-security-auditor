@@ -64,11 +64,11 @@ def as_terminal(findings: list[Finding]) -> str:
 
 
 def write_private(path: Path, content: str) -> None:
-    if _has_reparse_ancestor(path.parent):
+    if platform.system() == "Windows" and _has_reparse_ancestor(path.parent):
         raise ValueError("Report directory contains a reparse point")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if _is_reparse_point(path):
-        raise ValueError("Report target is a reparse point")
+    if path.is_symlink() or (platform.system() == "Windows" and _is_reparse_point(path)):
+        raise ValueError("Report target is a symlink or reparse point")
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,

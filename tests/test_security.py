@@ -236,7 +236,8 @@ class SecurityTests(unittest.TestCase):
     def test_report_rejects_reparse_point_parent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             target_path = Path(directory) / "redirected" / "report.json"
-            with (patch("security_audit.reporting._has_reparse_ancestor", return_value=True),
+            with (patch("security_audit.reporting.platform.system", return_value="Windows"),
+                  patch("security_audit.reporting._has_reparse_ancestor", return_value=True),
                   self.assertRaisesRegex(ValueError, "reparse point")):
                 write_private(target_path, "synthetic")
             self.assertFalse(target_path.parent.exists())

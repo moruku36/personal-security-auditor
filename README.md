@@ -17,8 +17,8 @@ This project provides a safe first pass before deeper manual review.
 
 - macOS FileVault, firewall, Gatekeeper, SIP and Remote Login checks
 - Windows drive encryption, active firewall, Defender, UAC and Secure Boot checks
-- Browser presence and extension directory counts
-- Secret-like assignment name discovery in selected shell and `.env` files
+- Browser presence, bounded Chrome extension manifest metadata and permission review flags
+- Candidate `.env` and shell configuration file presence and permission metadata; file contents are not read
 - Git repository hygiene, SSH and cloud credential file permissions
 - Developer CLI presence and credential-store file permissions
 - Non-loopback TCP listeners on macOS and Windows, and AI agent directory permissions
@@ -62,8 +62,10 @@ search of direct repositories under `~/Documents` and `~/Developer`.
 ## Security Model
 
 Secret values, browser credential stores and private keys are never requested
-or included in findings. The assignment scanner discards value bytes without
-assembling them. Reports use mode 0600 on macOS and a restricted ACL on Windows,
+or included in findings. The `api` scanner checks selected configuration file
+presence and permissions without opening file contents. Browser checks read
+bounded extension manifests only; they do not inspect Chrome databases or
+settings files. Reports use mode 0600 on macOS and a restricted ACL on Windows,
 and are ignored by Git.
 The CLI has no telemetry, cloud upload or remote API calls. Findings may be
 incomplete; a clean report is not a security certification.
@@ -86,8 +88,8 @@ See [Windows checks and limits](docs/windows.md) before interpreting results.
 | Category | Current coverage |
 | --- | --- |
 | `os` | Selected macOS and Windows hardening states |
-| `browser` | macOS/Windows browser directories and Chromium extension counts |
-| `api` | Secret-like assignment names and file permissions |
+| `browser` | Browser directories, bounded Chrome manifest metadata, and Windows policy presence |
+| `api` | Candidate configuration file presence and permissions; no file content |
 | `git` | `.gitignore` presence and history scan reminder |
 | `ssh` | Directory and key permissions or Windows ACL review |
 | `cloud` | CLI presence and credential file permissions or Windows ACL review |
@@ -95,9 +97,10 @@ See [Windows checks and limits](docs/windows.md) before interpreting results.
 | `network` | Non-loopback TCP listeners on macOS and Windows |
 | `ai` | Agent directory presence and permissions |
 
-Browser version, extension permission, MFA, cloud IAM and Git history leak
-detection require a separate manual or opt-in review. External credential
-validation is intentionally absent.
+Effective extension grants, extension publisher identity, browser update status,
+MFA, passkeys, Windows Hello PIN safety, cloud IAM and Git history leak detection
+require separate manual review. See the [personal checklist](docs/manual-security-checklist.ja.md).
+External credential validation is intentionally absent.
 
 ## Risk Levels
 

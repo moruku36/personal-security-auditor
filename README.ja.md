@@ -16,8 +16,8 @@ PCのセキュリティ状態をローカルで確認するCLIだよ。Secretの
 
 - macOSのFileVault、Firewall、Gatekeeper、SIP、Remote Login
 - Windowsのドライブ暗号化、Firewall、Defender、UAC、Secure Boot
-- ブラウザの存在とChromium系拡張機能ディレクトリ数
-- 一部のシェル設定と`.env`にあるSecretらしい設定名
+- ブラウザの存在、Chrome拡張manifestの限定メタデータと権限確認
+- `.env`やシェル設定ファイルの存在・権限メタデータ（本文は読み取らない）
 - Git、SSH、クラウド認証ファイルの権限
 - 開発用CLIの存在と認証ファイルの権限
 - macOS/Windowsでローカル以外を待ち受けるTCPポートとAIエージェント設定ディレクトリ
@@ -54,7 +54,8 @@ security-audit fix --apply    # 表示された権限変更を適用
 ## セキュリティモデル
 
 Secret値、ブラウザの保存パスワード、秘密鍵の内容を取得・出力しない。
-設定ファイルの代入値は組み立てずに読み飛ばす。レポートはmacOSで0600、
+`api`は選択した設定ファイルの存在と権限だけを確認し、本文を開かない。
+ブラウザ監査は上限付きmanifestだけを読み、レポートはmacOSで0600、
 Windowsで本人専用のACLを設定して保存し、
 Git管理から除外する。詳しくは[安全設計](docs/security-model.md)へ。
 
@@ -74,8 +75,8 @@ Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 | カテゴリ | 現在の範囲 |
 | --- | --- |
 | `os` | macOS/Windowsの主要設定 |
-| `browser` | macOS/Windowsでの存在と拡張機能数 |
-| `api` | Secretらしい設定名とファイル権限 |
+| `browser` | ブラウザdir、限定manifestメタデータ、Windows Chromeポリシーの有無 |
+| `api` | 設定ファイルの存在と権限。本文は読まない |
 | `git` | `.gitignore`と履歴検査の案内 |
 | `ssh` | ディレクトリと鍵の権限、WindowsではACL |
 | `cloud` | CLIと認証ファイルの存在・権限、WindowsではACL |
@@ -83,7 +84,8 @@ Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 | `network` | macOS/WindowsのTCP待受 |
 | `ai` | エージェント設定ディレクトリの存在・権限 |
 
-拡張機能の権限、MFA、クラウドIAM、Git履歴内Secretなどは手動確認が必要。
+実際に許可された拡張権限、MFA、passkey、Windows Hello/PIN、クラウドIAM、
+Git履歴内Secretなどは手動確認が必要。本人用の[チェックリスト](docs/manual-security-checklist.ja.md)を参照。
 
 ## リスクレベル
 

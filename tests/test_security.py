@@ -8,6 +8,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from security_audit import engine
@@ -17,31 +18,39 @@ from security_audit.model import Finding
 from security_audit.remediation import target
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private
 from security_audit.scanners.base import Context
-from security_audit.scanners.browser import BrowserScanner
+from security_audit.scanners.browser import BrowserScanner, _bounded_directories, _metadata_is_reparse_point
 from security_audit.scanners.development import DevelopmentScanner
 from security_audit.scanners.network import NetworkScanner
 from security_audit.scanners.os_security import OSScanner
-from security_audit.scanners.secrets import assignment_names
+from security_audit.scanners.secrets import SecretScanner
 
 
 class SecurityTests(unittest.TestCase):
-    def test_secret_values_never_leave_scanner(self) -> None:
+    def test_secret_scanner_never_opens_configuration_file(self) -> None:
         fake = "FAKE_ONLY_DO_NOT_USE_1234567890"
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            (home / ".zshrc").write_text("OPENAI_API_KEY=" + fake + "\n", encoding="utf-8")
+            profile = home / ".zshrc"
+            profile.write_text("OPENAI_API_KEY=" + fake + "\n", encoding="utf-8")
             context = Context(home, home)
-            self.assertEqual(assignment_names(home / ".zshrc"), {b"OPENAI_API_KEY"})
-            findings = scan(context, "api")
+            with patch.object(Path, "open", side_effect=AssertionError("file content read")):
+                findings = SecretScanner().scan(context)
             for report in (as_terminal(findings), as_json(findings), as_markdown(findings)):
                 self.assertNotIn(fake, report)
             self.assertEqual(json.loads(as_json(findings))["findings"][0]["code"], "API-001")
 
-    def test_export_assignment_name_is_detected_without_value(self) -> None:
+    def test_secret_scanner_only_reports_candidate_file_presence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / ".zshrc"
-            path.write_text("export OPENAI_API_KEY=FAKE_ONLY_DO_NOT_USE\n", encoding="utf-8")
-            self.assertEqual(assignment_names(path), {b"OPENAI_API_KEY"})
+            home = Path(directory)
+            env_file = home / ".env"
+            env_file.write_text("FAKE_ONLY_DO_NOT_USE", encoding="utf-8")
+            env_file.chmod(0o644)
+            findings = SecretScanner().scan(Context(home, home, system="Darwin"))
+            finding = next(item for item in findings if item.code == "API-001")
+            self.assertIn("contents were not read", finding.title)
+            self.assertEqual(finding.location, "local configuration metadata")
+            permission_finding = next(item for item in findings if item.code == "API-002")
+            self.assertFalse(permission_finding.auto_fixable)
 
     def test_developer_store_permission_check_avoids_content(self) -> None:
         fake = "FAKE_ONLY_DO_NOT_USE_registry_token"
@@ -70,7 +79,8 @@ class SecurityTests(unittest.TestCase):
 
     def test_sandbox_does_not_claim_firewall_is_disabled(self) -> None:
         with (tempfile.TemporaryDirectory() as directory,
-              patch("security_audit.scanners.os_security.run", return_value=(0, "Firewall is disabled")),
+              patch("security_audit.scanners.os_security.run",
+                    return_value=(0, "Firewall is disabled")),
               patch.dict(os.environ, {"CODEX_SANDBOX": "seatbelt"})):
             findings = OSScanner().scan(Context(Path(directory), Path(directory), system="Darwin"))
         self.assertFalse(any(item.code == "OS-002" for item in findings))
@@ -101,17 +111,131 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(findings[0].location, "non-loopback address:8080")
         self.assertNotIn("FAKE_SECRET_IP", as_json(findings))
 
-    def test_windows_browser_paths_and_powershell_assignment(self) -> None:
+    def test_windows_browser_paths_and_shell_profile_presence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             root = home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
             root.mkdir(parents=True)
             (root / "fake-extension").mkdir()
-            findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            with patch("security_audit.scanners.browser._extension_policy_status",
+                       return_value="not-configured"):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
             self.assertTrue(any(item.code == "BR-002" for item in findings))
-            profile = home / "Microsoft.PowerShell_profile.ps1"
+            profile = home / "Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
+            profile.parent.mkdir(parents=True)
             profile.write_text('$env:OPENAI_API_KEY="FAKE_ONLY_DO_NOT_USE"\n', encoding="utf-8")
-            self.assertEqual(assignment_names(profile), {b"OPENAI_API_KEY"})
+            findings = SecretScanner().scan(Context(home, home, system="Windows"))
+            self.assertTrue(any(item.code == "API-001" for item in findings))
+
+    def test_chrome_manifest_findings_are_aggregated_and_sanitized(self) -> None:
+        fake_id = "FAKE_EXTENSION_ID_DO_NOT_REPORT"
+        fake_name = "FAKE_EXTENSION_NAME_DO_NOT_REPORT"
+        fake_url = "https://private.example.invalid/update?token=FAKE_SECRET_DO_NOT_REPORT"
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
+                        / fake_id / "1.0" / "manifest.json")
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps({
+                "name": fake_name,
+                "version": "1.0",
+                "permissions": ["nativeMessaging"],
+                "host_permissions": ["<all_urls>"],
+                "update_url": fake_url,
+            }), encoding="utf-8")
+            with patch("security_audit.scanners.browser._extension_policy_status",
+                       return_value="configured"):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            report = as_json(findings)
+            codes = {item.code for item in findings}
+            self.assertTrue({"BR-004", "BR-005", "BR-006", "BR-009"}.issubset(codes))
+            private_values = (fake_id, fake_name, "private.example.invalid",
+                              "FAKE_SECRET_DO_NOT_REPORT")
+            for private_value in private_values:
+                self.assertNotIn(private_value, report)
+
+    def test_chrome_manifest_unknown_update_source_is_not_called_unsafe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
+                        / "fake-extension-id" / "1.0" / "manifest.json")
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('{"manifest_version": 3}', encoding="utf-8")
+            with patch("security_audit.scanners.browser._extension_policy_status",
+                       return_value="unknown"):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            self.assertTrue(any(item.code == "BR-007" for item in findings))
+            self.assertTrue(any(item.code == "BR-009" and "unavailable" in item.title
+                                for item in findings))
+            self.assertFalse(any(item.code == "BR-006" for item in findings))
+
+    def test_chrome_scan_never_opens_browser_secret_databases(self) -> None:
+        forbidden_names = {"Login Data", "Cookies", "History", "Local State", "Secure Preferences"}
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            profile = home / "AppData/Local/Google/Chrome/User Data/Default"
+            extensions = profile / "Extensions" / "fake-extension-id" / "1.0"
+            extensions.mkdir(parents=True)
+            (extensions / "manifest.json").write_text(
+                '{"manifest_version":3,"permissions":[]}', encoding="utf-8")
+            for name in forbidden_names:
+                (profile / name).write_text("SYNTHETIC_SENTINEL_DO_NOT_READ", encoding="utf-8")
+
+            original_open = Path.open
+
+            def guard_open(path: Path, *args: object, **kwargs: object):
+                if path.name in forbidden_names:
+                    raise AssertionError("Chrome secret database was opened")
+                return original_open(path, *args, **kwargs)
+
+            with (patch.object(Path, "open", autospec=True, side_effect=guard_open),
+                  patch("security_audit.scanners.browser._extension_policy_status",
+                        return_value="not-configured")):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            report = as_json(findings)
+            self.assertNotIn("SYNTHETIC_SENTINEL_DO_NOT_READ", report)
+
+    def test_chrome_scan_skips_oversized_manifest_without_opening_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
+                        / "fake-extension-id" / "1.0" / "manifest.json")
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("SYNTHETIC_OVERSIZED_MANIFEST_DO_NOT_READ" * 10_000,
+                                encoding="utf-8")
+            original_open = Path.open
+
+            def guard_open(path: Path, *args: object, **kwargs: object):
+                if path == manifest:
+                    raise AssertionError("oversized manifest was opened")
+                return original_open(path, *args, **kwargs)
+
+            with (patch.object(Path, "open", autospec=True, side_effect=guard_open),
+                  patch("security_audit.scanners.browser._extension_policy_status",
+                        return_value="not-configured")):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            report = as_json(findings)
+            self.assertTrue(any(item.code == "BR-008" for item in findings))
+            self.assertNotIn("SYNTHETIC_OVERSIZED_MANIFEST_DO_NOT_READ", report)
+
+    def test_browser_scanner_rejects_windows_reparse_points(self) -> None:
+        metadata = SimpleNamespace(st_mode=0, st_file_attributes=0x400)
+        self.assertTrue(_metadata_is_reparse_point(metadata))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch("security_audit.scanners.browser._is_reparse_point", return_value=True):
+                children, capped, failed = _bounded_directories(root, 10)
+            self.assertEqual(children, [])
+            self.assertFalse(capped)
+            self.assertTrue(failed)
+
+    def test_report_rejects_reparse_point_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            target_path = Path(directory) / "redirected" / "report.json"
+            with patch("security_audit.reporting._has_reparse_ancestor", return_value=True):
+                with self.assertRaisesRegex(ValueError, "reparse point"):
+                    write_private(target_path, "synthetic")
+            self.assertFalse(target_path.parent.exists())
 
     def test_windows_never_previews_chmod(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -251,6 +251,7 @@ class SecurityTests(unittest.TestCase):
     def test_windows_report_refuses_unsecured_acl(self) -> None:
         with (tempfile.TemporaryDirectory() as directory,
               patch("security_audit.reporting.platform.system", return_value="Windows"),
+              patch("security_audit.reporting._has_reparse_ancestor", return_value=False),
               patch("security_audit.reporting.restrict_windows_acl", return_value=False)):
             destination = Path(directory) / "report.json"
             with self.assertRaises(OSError):

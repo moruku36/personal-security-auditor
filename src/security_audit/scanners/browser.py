@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import stat
 from pathlib import Path
@@ -85,7 +86,7 @@ def _extension_policy_status(system: str) -> str:
     if system != "Windows":
         return "not-applicable"
     try:
-        import winreg
+        winreg = importlib.import_module("winreg")
     except ImportError:
         return "unknown"
 

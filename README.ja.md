@@ -15,11 +15,12 @@ PCのセキュリティ状態をローカルで確認するCLIだよ。Secretの
 ## 機能
 
 - macOSのFileVault、Firewall、Gatekeeper、SIP、Remote Login
-- ブラウザの存在とChromium系拡張機能ディレクトリ数
-- 一部のシェル設定と`.env`にあるSecretらしい設定名
+- Windowsのドライブ暗号化、Firewall、Defender、UAC、Secure Boot
+- ブラウザの存在、Chrome拡張manifestの限定メタデータと権限確認
+- `.env`やシェル設定ファイルの存在・権限メタデータ（本文は読み取らない）
 - Git、SSH、クラウド認証ファイルの権限
 - 開発用CLIの存在と認証ファイルの権限
-- ローカル以外でListenするTCPポートとAIエージェント設定ディレクトリ
+- macOS/Windowsでローカル以外を待ち受けるTCPポートとAIエージェント設定ディレクトリ
 - Terminal、Markdown、JSONレポートと権限修正のプレビュー
 
 ## アーキテクチャ
@@ -36,6 +37,10 @@ Python 3.11以上。実行時の外部依存とネットワーク通信はない
 python3 -m pip install -e .
 ```
 
+WindowsではPowerShellで`py -3.11 -m pip install -e .`を実行する。
+Windowsの検査はWSLではなくWindows上で実行してね。通常のスキャンに管理者権限は不要。
+権限不足で読めない項目は「確認できない」と表示する。
+
 ## すぐ使う
 
 ```sh
@@ -49,7 +54,9 @@ security-audit fix --apply    # 表示された権限変更を適用
 ## セキュリティモデル
 
 Secret値、ブラウザの保存パスワード、秘密鍵の内容を取得・出力しない。
-設定ファイルの代入値は組み立てずに読み飛ばす。レポートは0600で保存し、
+`api`は選択した設定ファイルの存在と権限だけを確認し、本文を開かない。
+ブラウザ監査は上限付きmanifestだけを読み、レポートはmacOSで0600、
+Windowsで本人専用のACLを設定して保存し、
 Git管理から除外する。詳しくは[安全設計](docs/security-model.md)へ。
 
 ## プライバシー
@@ -59,23 +66,26 @@ CIは架空の認証情報だけでテストし、実環境監査はしない。
 
 ## 対応OS
 
-macOSを優先実装。WindowsとLinuxのOS・Network検査は未実装と表示する。
+macOSとWindows 10/11に対応。Windowsは標準搭載のWindows PowerShellを使って
+ローカルで確認する。LinuxのOS・Network検査は未実装と表示する。
+Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 
 ## Scanner一覧
 
 | カテゴリ | 現在の範囲 |
 | --- | --- |
-| `os` | macOSの主要設定 |
-| `browser` | 存在と拡張機能数 |
-| `api` | Secretらしい設定名とファイル権限 |
+| `os` | macOS/Windowsの主要設定 |
+| `browser` | ブラウザdir、限定manifestメタデータ、Windows Chromeポリシーの有無 |
+| `api` | 設定ファイルの存在と権限。本文は読まない |
 | `git` | `.gitignore`と履歴検査の案内 |
-| `ssh` | ディレクトリと鍵の権限 |
-| `cloud` | CLIと認証ファイルの存在・権限 |
-| `dev` | 開発用CLIと認証ファイルの存在・権限 |
-| `network` | macOSのTCP Listen |
+| `ssh` | ディレクトリと鍵の権限、WindowsではACL |
+| `cloud` | CLIと認証ファイルの存在・権限、WindowsではACL |
+| `dev` | 開発用CLIと認証ファイルの存在・権限、WindowsではACL |
+| `network` | macOS/WindowsのTCP待受 |
 | `ai` | エージェント設定ディレクトリの存在・権限 |
 
-拡張機能の権限、MFA、クラウドIAM、Git履歴内Secretなどは手動確認が必要。
+実際に許可された拡張権限、MFA、passkey、Windows Hello/PIN、クラウドIAM、
+Git履歴内Secretなどは手動確認が必要。本人用の[チェックリスト](docs/manual-security-checklist.ja.md)を参照。
 
 ## リスクレベル
 
@@ -85,7 +95,8 @@ macOSを優先実装。WindowsとLinuxのOS・Network検査は未実装と表示
 
 ## 修正
 
-`fix`はプレビュー。`fix --apply`は一部の権限を狭めるだけ。
+macOSでは`fix`はプレビュー、`fix --apply`は一部の権限を狭めるだけ。
+WindowsのACL検査は読み取り専用で、自動修正しない。
 キー失効、IAMやMFA変更、削除は自動実行しないよ。
 
 ## ロードマップ

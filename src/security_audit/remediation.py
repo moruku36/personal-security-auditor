@@ -14,6 +14,8 @@ TARGET_MODES = {"SSH-001": 0o700, "SSH-002": 0o600,
 
 
 def target(context: Context, finding: Finding) -> tuple[Path, int] | None:
+    if context.system == "Windows":
+        return None
     desired = TARGET_MODES.get(finding.code)
     if desired is None or not finding.location.startswith("~/"):
         return None
@@ -24,11 +26,14 @@ def target(context: Context, finding: Finding) -> tuple[Path, int] | None:
 
 
 def apply_permission(path: Path, desired: int) -> bool:
+    fchmod = getattr(os, "fchmod", None)
+    if fchmod is None:
+        return False
     try:
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
         try:
             current = os.fstat(descriptor).st_mode & 0o777
-            os.fchmod(descriptor, current & desired)
+            fchmod(descriptor, current & desired)
             return True
         finally:
             os.close(descriptor)

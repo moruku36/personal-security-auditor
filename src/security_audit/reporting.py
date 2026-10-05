@@ -2,11 +2,34 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+import stat
 import tempfile
 from collections import Counter
 from pathlib import Path
 
 from security_audit.model import Finding, Risk
+from security_audit.windows import restrict_windows_acl
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        return False
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(metadata.st_mode) or bool(attributes & reparse_flag)
+
+
+def _has_reparse_ancestor(path: Path) -> bool:
+    current = path
+    while True:
+        if _is_reparse_point(current):
+            return True
+        if current.parent == current:
+            return False
+        current = current.parent
 
 
 def overall(findings: list[Finding]) -> Risk:
@@ -41,16 +64,20 @@ def as_terminal(findings: list[Finding]) -> str:
 
 
 def write_private(path: Path, content: str) -> None:
+    if platform.system() == "Windows" and _has_reparse_ancestor(path.parent):
+        raise ValueError("Report directory contains a reparse point")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.is_symlink():
-        raise ValueError("Report target is a symlink")
+    if path.is_symlink() or (platform.system() == "Windows" and _is_reparse_point(path)):
+        raise ValueError("Report target is a symlink or reparse point")
     temporary: Path | None = None
     try:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
                                          prefix=".security-audit-", delete=False) as handle:
             temporary = Path(handle.name)
+            if platform.system() == "Windows" and not restrict_windows_acl(temporary):
+                raise OSError("Could not restrict report ACL")
+            temporary.chmod(0o600)
             handle.write(content)
-        temporary.chmod(0o600)
         os.replace(temporary, path)
     finally:
         if temporary is not None:

@@ -20,7 +20,10 @@ class GitScanner:
         findings: list[Finding] = []
         roots = [context.repository]
         if context.full:
-            roots.extend(path for path in (context.home / "Documents", context.home / "Developer")
+            candidates = [context.home / "Documents", context.home / "Developer"]
+            if context.system == "Windows":
+                candidates.append(context.home / "source" / "repos")
+            roots.extend(path for path in candidates
                          if path.is_dir())
         repos: list[Path] = []
         for root in roots:

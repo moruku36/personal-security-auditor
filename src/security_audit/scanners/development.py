@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 
 from security_audit.model import Finding, Risk
-from security_audit.safety import mode
+from security_audit.permissions import broad_access
 from security_audit.scanners.base import Context
 
 
@@ -32,16 +32,24 @@ class DevelopmentScanner:
             findings.append(Finding("DEV-001", Risk.INFO,
                 f"{len(installed)} developer CLI tool(s) detected", "PATH",
                 "Review installed tool versions and remove unused tools manually."))
-        for relative, product in self.CREDENTIAL_FILES:
+        credential_files = list(self.CREDENTIAL_FILES)
+        if context.system == "Windows":
+            credential_files.append(("AppData/Roaming/GitHub CLI/hosts.yml", "GitHub CLI"))
+        for relative, product in credential_files:
             path = context.home / relative
-            permission = mode(path)
-            if permission is None:
+            if not path.is_file() or path.is_symlink():
                 continue
             findings.append(Finding("DEV-002", Risk.INFO,
                 f"{product} local configuration file exists", "~/" + relative,
                 "Review whether this credential store is still needed."))
-            if permission & 0o077:
+            exposure = broad_access(path, context.system)
+            if exposure:
                 findings.append(Finding("DEV-003", Risk.HIGH,
                     f"{product} configuration is accessible to others", "~/" + relative,
-                    "Restrict file permissions after reviewing access needs.", True))
+                    "Restrict file access after reviewing access needs.",
+                    context.system != "Windows"))
+            elif exposure is None:
+                findings.append(Finding("DEV-098", Risk.INFO,
+                    f"{product} permissions unavailable", "~/" + relative,
+                    "Review file permissions manually."))
         return findings

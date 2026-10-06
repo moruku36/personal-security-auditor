@@ -117,9 +117,15 @@ selected file or directory permissions. On Windows, ACL findings are read-only;
 MFA, delete files, or remove extensions. Review each proposed change before
 applying it.
 
+## Physical validation
+
+On 2026-10-06, the macOS scan and permission-fix flow completed on one physical Mac running macOS 27.2 with Python 3.11.4, using auditor source commit `20332630d64626a421b5508244cc002bdd64eb44`. A follow-up scan completed successfully. Host-specific findings and the report remain local and are not published here.
+
+This confirms execution on one host only. It is not a security certification or a compatibility guarantee for other hardware, macOS versions, or environments. Some checks may be unavailable depending on host permissions or sandboxing.
+
 ## Roadmap
 
-- Validate macOS and Windows checks on physical machines and add a Linux adapter
+- Expand physical-device validation across macOS versions and validate Windows checks on hardware; add a Linux adapter
 - Expand read-only Chrome checks only where settings can be collected without reading private profile data
 - Evaluate an opt-in offline Git history scanner
 - Add optional update checks

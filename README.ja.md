@@ -75,7 +75,7 @@ Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 | カテゴリ | 現在の範囲 |
 | --- | --- |
 | `os` | macOS/Windowsの主要設定 |
-| `browser` | ブラウザdir、限定manifestメタデータ、Windows Chromeポリシーの有無 |
+| `browser` | Chrome 拡張メタデータと権限、Windows Chrome の Safe Browsing 管理ポリシー |
 | `api` | 設定ファイルの存在と権限。本文は読まない |
 | `git` | `.gitignore`と履歴検査の案内 |
 | `ssh` | ディレクトリと鍵の権限、WindowsではACL |

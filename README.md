@@ -17,7 +17,7 @@ This project provides a safe first pass before deeper manual review.
 
 - macOS FileVault, firewall, Gatekeeper, SIP and Remote Login checks
 - Windows drive encryption, active firewall, Defender, UAC and Secure Boot checks
-- Browser presence, bounded Chrome extension manifest metadata and permission review flags
+- Browser presence, bounded Chrome extension manifest metadata and permission review flags, and Windows Safe Browsing policy checks
 - Candidate `.env` and shell configuration file presence and permission metadata; file contents are not read
 - Git repository hygiene, SSH and cloud credential file permissions
 - Developer CLI presence and credential-store file permissions
@@ -98,8 +98,9 @@ See [Windows checks and limits](docs/windows.md) before interpreting results.
 | `ai` | Agent directory presence and permissions |
 
 Effective extension grants, extension publisher identity, browser update status,
-MFA, passkeys, Windows Hello PIN safety, cloud IAM and Git history leak detection
-require separate manual review. See the [personal checklist](docs/manual-security-checklist.ja.md).
+Chrome user preferences, MFA, passkeys, Windows Hello PIN safety, cloud IAM and
+Git history leak detection require separate manual review. See the [personal
+checklist](docs/manual-security-checklist.ja.md).
 External credential validation is intentionally absent.
 
 ## Risk Levels
@@ -119,9 +120,9 @@ applying it.
 ## Roadmap
 
 - Validate macOS and Windows checks on physical machines and add a Linux adapter
-- Add safe extension metadata and agent permission checks
+- Expand read-only Chrome checks only where settings can be collected without reading private profile data
 - Evaluate an opt-in offline Git history scanner
-- Add user-led MFA/passkey checklist and optional update checks
+- Add optional update checks
 
 ## Contributing
 

@@ -70,6 +70,12 @@ macOSとWindows 10/11に対応。Windowsは標準搭載のWindows PowerShellを�
 ローカルで確認する。LinuxのOS・Network検査は未実装と表示する。
 Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 
+## macOS実機での検証
+
+2026-10-06、macOS 27.2 / Python 3.11.4 のMac実機で、監査CLIのスキャンと権限修正フローを実行し、再スキャンまで完了。対象ソースはcommit `20332630d64626a421b5508244cc002bdd64eb44`。端末固有の結果とレポートはローカルに保持し、このリポジトリには掲載しない。
+
+これは1台での動作確認で、セキュリティ認証や他の機種・macOSバージョン・実行環境での互換性を保証するものではないよ。権限やsandboxの状態により、一部の検査項目が取得できない場合がある。
+
 ## Scanner一覧
 
 | カテゴリ | 現在の範囲 |

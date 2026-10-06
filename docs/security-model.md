@@ -34,5 +34,8 @@ Windows Hello/PIN checks require manual review. See the personal checklist.
 Safe Browsing registry values do not prove the effective browser setting or
 include cloud policy/user preferences. Chrome user settings, account MFA,
 passkeys and Windows Hello/PIN checks require manual review. Windows checks
-have not yet been validated on a personal Windows machine; CI exercises their
-behavior with controlled fixtures.
+have received a point-in-time physical-device run; browser UI review is limited
+to the settings and visible context checked manually. This is not a
+certification or coverage guarantee. CI exercises behavior with controlled
+fixtures and does not inspect its runner's real environment. See the physical-
+validation notes in the READMEs for scope and limitations.

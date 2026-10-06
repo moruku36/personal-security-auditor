@@ -121,14 +121,13 @@ applying it.
 
 On 2026-10-06, the macOS scan and permission-fix flow completed on one physical Mac running macOS 27.2 with Python 3.11.4, using auditor source commit `20332630d64626a421b5508244cc002bdd64eb44`. A follow-up scan completed successfully. Host-specific findings and the report remain local and are not published here.
 
-This confirms execution on one host only. It is not a security certification or a compatibility guarantee for other hardware, macOS versions, or environments. Some checks may be unavailable depending on host permissions or sandboxing.
+On 2026-10-06, the CLI's OS and browser scans also completed on one physical Windows PC, and creation of a report with a user-only ACL was confirmed. A manual browser UI review checked the visible protection state and reviewed enabled extensions' displayed permissions/site access against publisher and store/developer information supplied for verification. An AI-service UI review covered its approved-site list and the scope shown for the conversation on screen. Host-specific findings, extension and site names, account identifiers, screenshots and reports are not published here.
+
+These are point-in-time execution and UI checks on individual hosts and visible contexts. They are not a security certification, a guarantee for other machines or sessions, proof of absence of malicious code, or a compatibility guarantee. The CLI's Chrome manifest scan reports declarations and stored metadata; it does not independently establish effective grants or publisher identity. CI uses synthetic fixtures and does not audit the runner's real environment or replace physical-device validation. Some checks may be unavailable depending on host permissions or sandboxing.
 
 ## Roadmap
 
-- Expand physical-device validation across macOS versions and validate Windows checks on hardware; add a Linux adapter
-- Expand read-only Chrome checks only where settings can be collected without reading private profile data
-- Evaluate an opt-in offline Git history scanner
-- Add optional update checks
+See the [security auditor roadmap](docs/roadmap.md) for prioritized extension plans and their safety boundaries. These items are proposals, not implemented or enabled features.
 
 ## Contributing
 

@@ -74,9 +74,14 @@ def write_private(path: Path, content: str) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,
                                          prefix=".security-audit-", delete=False) as handle:
             temporary = Path(handle.name)
-            if platform.system() == "Windows" and not restrict_windows_acl(temporary):
-                raise OSError("Could not restrict report ACL")
-            temporary.chmod(0o600)
+
+        # Windows PowerShell can block while changing a file ACL if Python
+        # still holds the NamedTemporaryFile handle. Close it before applying
+        # the private ACL, and do not write report content until that succeeds.
+        if platform.system() == "Windows" and not restrict_windows_acl(temporary):
+            raise OSError("Could not restrict report ACL")
+        temporary.chmod(0o600)
+        with temporary.open("w", encoding="utf-8") as handle:
             handle.write(content)
         os.replace(temporary, path)
     finally:

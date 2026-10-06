@@ -323,6 +323,32 @@ class SecurityTests(unittest.TestCase):
                 write_private(destination, "FAKE_ONLY_DO_NOT_USE")
             self.assertFalse(destination.exists())
 
+    def test_windows_report_applies_acl_after_temp_handle_closes(self) -> None:
+        real_named_temporary_file = tempfile.NamedTemporaryFile
+        handles = []
+
+        @contextlib.contextmanager
+        def tracked_named_temporary_file(*args, **kwargs):
+            with real_named_temporary_file(*args, **kwargs) as handle:
+                handles.append(handle)
+                yield handle
+
+        def acl_probe(path: Path) -> bool:
+            self.assertTrue(handles[-1].file.closed)
+            self.assertTrue(path.exists())
+            self.assertEqual(path.stat().st_size, 0)
+            return True
+
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "reports" / "latest.json"
+            with (patch("security_audit.reporting.platform.system", return_value="Windows"),
+                  patch("security_audit.reporting._has_reparse_ancestor", return_value=False),
+                  patch("security_audit.reporting.tempfile.NamedTemporaryFile",
+                        side_effect=tracked_named_temporary_file),
+                  patch("security_audit.reporting.restrict_windows_acl", side_effect=acl_probe)):
+                write_private(destination, "synthetic report")
+            self.assertEqual(destination.read_text(encoding="utf-8"), "synthetic report")
+
     @unittest.skipUnless(os.name == "nt", "native Windows only")
     def test_windows_private_acl_can_be_applied(self) -> None:
         from security_audit.windows import PRIVATE_ACL_SCRIPT, powershell

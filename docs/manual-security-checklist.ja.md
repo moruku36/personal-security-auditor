@@ -4,14 +4,27 @@
 
 ## Chrome拡張
 
+### Chrome のセキュリティ設定
+
+- `chrome://settings/security` で Safe Browsing が「保護なし」ではないことと、「常に安全な接続を使用する」の設定を確認する。保護レベルは使いやすさとプライバシーの希望に合わせて選ぶ。
+- `chrome://settings/privacy` でサードパーティ Cookie／トラッキング保護を確認し、必要な例外が過剰に広くないか見直す。
+- 個人端末で意図せず「組織によって管理」表示が出ていないか確認する。職場や学校の管理端末では管理者の説明に従う。
+- `chrome://settings/content` で位置情報、カメラ、マイク、通知などのサイト権限を見直し、覚えのない許可を取り消す。CLI はサイト別の許可一覧を読み取らない。
+
+Windows の CLI は、Chrome の存在が検出された場合、現在ユーザーと端末のレジストリにある `SafeBrowsingProtectionLevel` の DWORD と `ExtensionSettings` の存在だけを確認する。これは管理設定の記録であり、`chrome://policy` の実効値やユーザー設定を示さない。未設定・競合・読取不能は不明として扱う。Chrome の Preferences、ログイン情報、Cookie、閲覧履歴は読まない。
+
+参考: [Safe Browsing Protection Level policy](https://chromeenterprise.google/policies/safe-browsing-protection-level/)、[Chrome の Cookie 設定](https://support.google.com/chrome/answer/95647?hl=en)、[サイト権限の管理](https://support.google.com/chrome/answer/114662?hl=en)。
+
 - Chromeの `chrome://extensions` を開き、使っていない拡張と見覚えのない拡張がないか確認する。
 - 各拡張の提供元をChrome Web Storeや開発元の公式情報で本人が確認する。
 - 「サイトへのアクセス」で、すべてのサイトへのアクセスが本当に必要か確認し、不要なら限定設定にする。
 - 詳細画面で要求する権限と、Chrome上で実際に許可されている権限を確認する。CLIがmanifestから読むのは要求宣言で、許可済み状態ではない。
-- `chrome://policy` で管理ポリシーの状態を確認する。CLIのレジストリ検査は `ExtensionSettings` の存在だけで、適用結果の証明ではない。
+- `chrome://policy` で管理ポリシーの状態を確認する。CLI は Windows レジストリの `ExtensionSettings` の存在と `SafeBrowsingProtectionLevel` 値だけを確認し、適用結果の証明はしない。
 - Chromeの更新状態をブラウザー画面で確認する。CLIはネットワークで拡張やブラウザーの更新を確認しない。
 
 ## MFAとpasskey
+
+- アカウントの最近のログイン／接続済み端末に見覚えのないものがないか確認する。
 
 重要なアカウントごとに、本人がアカウントのセキュリティ設定を開いて確認する。
 

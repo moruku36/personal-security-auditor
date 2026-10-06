@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,7 @@ from security_audit.scanners.browser import (
     BrowserScanner,
     _bounded_directories,
     _metadata_is_reparse_point,
+    _safe_browsing_policy_status,
 )
 from security_audit.scanners.development import DevelopmentScanner
 from security_audit.scanners.network import NetworkScanner
@@ -130,6 +132,69 @@ class SecurityTests(unittest.TestCase):
             profile.write_text('$env:OPENAI_API_KEY="FAKE_ONLY_DO_NOT_USE"\n', encoding="utf-8")
             findings = SecretScanner().scan(Context(home, home, system="Windows"))
             self.assertTrue(any(item.code == "API-001" for item in findings))
+
+    def test_chrome_safe_browsing_registry_policy_is_bounded_and_unknown_safe(self) -> None:
+        class FakeWinreg:
+            HKEY_CURRENT_USER = "user"
+            HKEY_LOCAL_MACHINE = "machine"
+            KEY_READ = 1
+            REG_DWORD = 4
+
+            def __init__(self, entries: dict[str, tuple[object, int]]):
+                self.entries = entries
+
+            def OpenKey(self, hive: str, _path: str, _reserved: int, _access: int) -> str:
+                if hive not in self.entries:
+                    raise FileNotFoundError
+                return hive
+
+            def QueryValueEx(self, hive: str, _name: str) -> tuple[object, int]:
+                if hive not in self.entries:
+                    raise FileNotFoundError
+                return self.entries[hive]
+
+            def CloseKey(self, _key: str) -> None:
+                return None
+
+        scenarios = (
+            ({"user": (0, 4)}, "disabled"),
+            ({"machine": (2, 4)}, "enhanced"),
+            ({"user": (1, 4), "machine": (2, 4)}, "conflicting"),
+            ({"user": (False, 4)}, "unknown"),
+            ({"user": ("0", 1)}, "unknown"),
+            ({}, "not-configured"),
+        )
+        for entries, expected in scenarios:
+            with self.subTest(expected=expected):
+                fake = FakeWinreg(entries)
+                with patch.dict(sys.modules, {"winreg": fake}):
+                    self.assertEqual(_safe_browsing_policy_status("Windows"), expected)
+
+    def test_chrome_disabled_safe_browsing_policy_is_high_risk(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "AppData/Local/Google/Chrome/User Data/Default").mkdir(parents=True)
+            with (patch("security_audit.scanners.browser._extension_policy_status",
+                        return_value="not-configured"),
+                  patch("security_audit.scanners.browser._safe_browsing_policy_status",
+                        return_value="disabled")):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            finding = next(item for item in findings if item.code == "BR-010")
+            self.assertEqual(finding.risk.value, "HIGH")
+            self.assertNotIn("SafeBrowsingProtectionLevel", as_json([finding]))
+
+    def test_chrome_conflicting_safe_browsing_policy_is_unknown(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "AppData/Local/Google/Chrome/User Data/Default").mkdir(parents=True)
+            with (patch("security_audit.scanners.browser._extension_policy_status",
+                        return_value="not-configured"),
+                  patch("security_audit.scanners.browser._safe_browsing_policy_status",
+                        return_value="conflicting")):
+                findings = BrowserScanner().scan(Context(home, home, system="Windows"))
+            finding = next(item for item in findings if item.code == "BR-010")
+            self.assertEqual(finding.risk.value, "INFO")
+            self.assertIn("conflict", finding.title)
 
     def test_chrome_manifest_findings_are_aggregated_and_sanitized(self) -> None:
         fake_id = "FAKE_EXTENSION_ID_DO_NOT_REPORT"

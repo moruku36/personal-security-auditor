@@ -125,6 +125,51 @@ def _extension_policy_status(system: str) -> str:
     return "unknown" if unknown else "not-configured"
 
 
+def _safe_browsing_policy_status(system: str) -> str:
+    """Read only the bounded Windows Safe Browsing policy enum; never user preferences."""
+    if system != "Windows":
+        return "not-applicable"
+    try:
+        winreg = importlib.import_module("winreg")
+    except ImportError:
+        return "unknown"
+
+    policy_path = r"Software\Policies\Google\Chrome"
+    values: list[int] = []
+    unknown = False
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            key = winreg.OpenKey(hive, policy_path, 0, winreg.KEY_READ)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            unknown = True
+            continue
+        try:
+            try:
+                value, value_type = winreg.QueryValueEx(key, "SafeBrowsingProtectionLevel")
+            except FileNotFoundError:
+                continue
+            except OSError:
+                unknown = True
+                continue
+            if (value_type != winreg.REG_DWORD or isinstance(value, bool)
+                    or not isinstance(value, int) or value not in (0, 1, 2)):
+                unknown = True
+                continue
+            values.append(value)
+        finally:
+            winreg.CloseKey(key)
+
+    if unknown:
+        return "unknown"
+    if not values:
+        return "not-configured"
+    if len(set(values)) != 1:
+        return "conflicting"
+    return {0: "disabled", 1: "standard", 2: "enhanced"}[values[0]]
+
+
 class BrowserScanner:
     category = "browser"
     MAC_ROOTS: ClassVar[dict[str, str]] = {
@@ -286,4 +331,32 @@ class BrowserScanner:
                 recommendation = "Review managed extension settings in chrome://policy."
             findings.append(Finding("BR-009", Risk.INFO, title, "Chrome policy",
                                     recommendation))
+            safe_browsing = _safe_browsing_policy_status(context.system)
+            if safe_browsing == "disabled":
+                findings.append(Finding(
+                    "BR-010", Risk.HIGH,
+                    "Chrome Safe Browsing policy explicitly selects no protection",
+                    "Chrome security policy",
+                    "Verify the effective value in chrome://policy and review the setting "
+                    "in chrome://settings/security."))
+            elif safe_browsing == "conflicting":
+                findings.append(Finding(
+                    "BR-010", Risk.INFO,
+                    "Chrome Safe Browsing policy values conflict across registry hives",
+                    "Chrome security policy",
+                    "Review the effective value in chrome://policy; the checked registry "
+                    "values do not identify which setting is effective."))
+            elif safe_browsing in ("standard", "enhanced"):
+                findings.append(Finding(
+                    "BR-010", Risk.INFO,
+                    f"Chrome Safe Browsing policy is set to {safe_browsing} protection",
+                    "Chrome security policy",
+                    "Confirm the effective value in chrome://policy; this registry check "
+                    "does not include cloud policy or user preferences."))
+            else:
+                findings.append(Finding(
+                    "BR-010", Risk.INFO,
+                    "Chrome Safe Browsing effective setting is unknown",
+                    "Chrome security policy",
+                    "Review chrome://settings/security and chrome://policy in Chrome."))
         return findings

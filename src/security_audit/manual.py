@@ -90,7 +90,7 @@ def save_record(path: Path, result: str, checked_on: str | None = None) -> None:
         if checked_on is not None:
             raise ValueError("Unchecked has no check date")
     else:
-        checked_on = validate_date(checked_on or date.today().isoformat())
+        checked_on = validate_date(date.today().isoformat() if checked_on is None else checked_on)
     write_private(path, json.dumps({"result": result, "checked_on": checked_on}) + "\n")
 
 

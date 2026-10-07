@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
         print(as_coverage(args.format), end="")
         return 0
     if args.command in ("password-checkup", "browser-review"):
-        if args.date and (not args.result or args.result == "unchecked"):
+        if args.date is not None and (not args.result or args.result == "unchecked"):
             root.error("--date requires --result clear or issues")
         kind = "password" if args.command == "password-checkup" else "extensions"
         browser = getattr(args, "browser", "Chrome")

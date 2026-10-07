@@ -48,7 +48,10 @@ def _bounded_directories(root: Path, limit: int, pattern: str | None = None
         children = root.glob(pattern) if pattern is not None else root.iterdir()
         for child in children:
             try:
-                if _is_reparse_point(child) or not child.is_dir():
+                if _is_reparse_point(child):
+                    failed = True
+                    continue
+                if not child.is_dir():
                     continue
             except OSError:
                 failed = True
@@ -245,7 +248,10 @@ class BrowserScanner:
 
             for profile in profiles:
                 try:
-                    if _is_reparse_point(profile) or not profile.is_dir():
+                    if _is_reparse_point(profile):
+                        incomplete = True
+                        continue
+                    if not profile.is_dir():
                         continue
                 except OSError:
                     incomplete = True

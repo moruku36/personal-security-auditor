@@ -123,7 +123,7 @@ class ReviewFeaturesTests(unittest.TestCase):
     def test_manual_invalid_dates_and_results_do_not_create_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = record_path(Path(directory).resolve(), "password")
-            for result, day in (("clear", "invalid"), ("unchecked", "2020-01-01"),
+            for result, day in (("clear", "invalid"), ("clear", ""), ("unchecked", "2020-01-01"),
                                 ("password-value", None)):
                 with self.assertRaises(ValueError):
                     save_record(path, result, day)
@@ -386,6 +386,17 @@ class ReviewFeaturesTests(unittest.TestCase):
         self.assertEqual(findings[0].location, "non-loopback address:8080")
         self.assertNotIn("192.0.2.10", as_json(findings))
         self.assertNotIn("SYNTHETIC_PRIVATE_PROCESS", as_json(findings))
+
+    def test_redirected_profile_is_not_silently_treated_as_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            root = home / BrowserScanner.MAC_ROOTS["Chrome"]
+            (root / "Default").mkdir(parents=True)
+            with patch("security_audit.scanners.browser._is_reparse_point",
+                       side_effect=lambda path: path == root / "Default"):
+                findings = BrowserScanner().scan(Context(home, home, system="Darwin"))
+            finding = next(item for item in findings if item.code == "BR-008")
+            self.assertEqual(finding.status, Status.UNAVAILABLE)
 
     def test_coverage_command_does_not_scan_or_claim_new_physical_validation(self) -> None:
         stdout = io.StringIO()

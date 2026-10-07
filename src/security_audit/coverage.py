@@ -39,6 +39,10 @@ def rows() -> list[dict[str, str]]:
                                         "new features not device-validated")
                 if browser == "Chrome" else NOT_VALIDATED,
             })
+    result.append({"os": "Windows", "browser": "Safari",
+                   "implemented": "discovery unavailable; independent manual guidance only",
+                   "fixtures": "aggregate manual record fixtures; no discovery adapter",
+                   "physical_validation": NOT_VALIDATED})
     result.append({"os": "Linux/other", "browser": "all",
                    "implemented": "OS/network/browser adapters unavailable",
                    "fixtures": "unsupported adapter fixtures", "physical_validation": NOT_VALIDATED})

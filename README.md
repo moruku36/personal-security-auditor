@@ -4,14 +4,25 @@
 
 ## Overview
 
-A local-first CLI for reviewing personal computer security without collecting
-secret values. It produces actionable findings from metadata and selected OS
-status checks.
+A local-first CLI for **defensive security review of your own macOS or Windows
+workstation**. It flags selected OS hardening states, credential-file permissions,
+Chrome extension manifest declarations, and non-loopback TCP listeners, then
+produces local findings and recommendations.
+
+It does not collect password, token, or private-key values. **Google Password
+Checkup is not implemented**; saved-password checks, account protection, and
+browser-effective permissions require separate manual review. A clean report
+is not proof that a device is secure.
+
+Automated tests use synthetic fixtures. The [physical validation](#physical-validation)
+notes describe point-in-time checks on one Mac and one Windows PC; they do not
+establish coverage or compatibility for every device. See the
+[security model](docs/security-model.md) for data boundaries and limitations.
 
 ## Why
 
-Credentials and agent permissions are scattered across a developer workstation.
-This project provides a safe first pass before deeper manual review.
+Help workstation owners prioritize configuration and permission issues for
+manual review, while keeping sensitive values and host-specific reports local.
 
 ## Features
 

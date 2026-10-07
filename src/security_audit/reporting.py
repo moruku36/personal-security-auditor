@@ -8,7 +8,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from security_audit.model import Finding, Risk
+from security_audit.model import REPORT_SCHEMA_VERSION, Finding, Risk, Status
 from security_audit.windows import restrict_windows_acl
 
 
@@ -37,29 +37,51 @@ def overall(findings: list[Finding]) -> Risk:
 
 
 def as_json(findings: list[Finding]) -> str:
-    return json.dumps({"overall_risk": overall(findings).value,
+    return json.dumps({"schema_version": REPORT_SCHEMA_VERSION,
+                       "overall_risk": overall(findings).value,
+                       "status_counts": {state.value: sum(item.status == state for item in findings)
+                                         for state in Status},
+                       "limitations": ["No findings does not prove safety.",
+                                       "Unknown and unavailable checks are not passes."],
                        "findings": [item.as_dict() for item in findings]}, indent=2) + "\n"
 
 
 def as_markdown(findings: list[Finding]) -> str:
     counts = Counter(item.risk for item in findings)
     lines = ["# Personal Security Audit", "", f"Overall risk: **{overall(findings).value}**", "",
+             "No findings does not prove safety. Unknown/unavailable checks are not passes.", "",
              "| Risk | Count |", "| --- | ---: |"]
     lines.extend(f"| {risk.value} | {counts[risk]} |" for risk in Risk)
+    lines.extend(["", "| Status | Count |", "| --- | ---: |"])
+    lines.extend(f"| {state.value} | {sum(item.status == state for item in findings)} |"
+                 for state in Status)
     for finding in findings:
         lines.extend(["", f"## {finding.risk.value}: {finding.code}", "",
                       finding.title, "", f"Location: `{finding.location}`", "",
+                      f"Status: **{finding.status.value}**",
+                      f"Evidence: {finding.evidence_source.value}",
+                      f"ID: `{finding.id}`",
+                      f"Checked on: {finding.checked_on or 'not recorded'}", "",
                       f"Recommendation: {finding.recommendation}"])
+        lines.extend(f"- Limitation: {value}" for value in finding.limitations)
     return "\n".join(lines) + "\n"
 
 
 def as_terminal(findings: list[Finding]) -> str:
     counts = Counter(item.risk for item in findings)
-    lines = ["Personal Security Audit", "", f"Overall Risk: {overall(findings).value}", ""]
+    lines = ["Personal Security Audit", "", f"Overall Risk: {overall(findings).value}", "",
+             "No findings does not prove safety. Unknown/unavailable checks are not passes.", ""]
     lines.extend(f"{risk.value:<8} {counts[risk]}" for risk in Risk)
+    lines.append("")
+    lines.extend(f"{state.value:<14} {sum(item.status == state for item in findings)}"
+                 for state in Status)
     for item in findings:
         lines.extend(["", f"{item.risk.value} [{item.code}] {item.title}",
-                      f"Location: {item.location}", f"Recommendation: {item.recommendation}"])
+                      f"Status: {item.status.value}; evidence: {item.evidence_source.value}",
+                      f"ID: {item.id}", f"Location: {item.location}",
+                      f"Checked on: {item.checked_on or 'not recorded'}",
+                      f"Recommendation: {item.recommendation}"])
+        lines.extend(f"Limitation: {value}" for value in item.limitations)
     return "\n".join(lines) + "\n"
 
 

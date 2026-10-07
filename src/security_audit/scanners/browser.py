@@ -382,7 +382,8 @@ class BrowserScanner:
                                     recommendation,
                                     status=Status.UNAVAILABLE if policy_status == "unknown"
                                     else Status.OBSERVED,
-                                    evidence_source=Evidence.POLICY,
+                                    evidence_source=Evidence.UNAVAILABLE if policy_status == "unknown"
+                                    else Evidence.POLICY,
                                     limitations=("Registry presence is not the effective browser policy.",)))
             safe_browsing = _safe_browsing_policy_status(context.system)
             if safe_browsing == "disabled":
@@ -419,6 +420,7 @@ class BrowserScanner:
                     "Chrome security policy",
                     "Review chrome://settings/security and chrome://policy in Chrome.",
                     status=Status.UNAVAILABLE if safe_browsing == "unknown" else Status.UNKNOWN,
-                    evidence_source=Evidence.POLICY,
+                    evidence_source=Evidence.UNAVAILABLE if safe_browsing == "unknown"
+                    else Evidence.POLICY,
                     limitations=("User preferences and cloud policy are not inspected.",)))
         return findings

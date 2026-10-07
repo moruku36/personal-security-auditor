@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from security_audit.cli import main
 from security_audit.comparison import (
-    Snapshot, compare, read_snapshot, save_snapshot, snapshot,
+    compare, read_snapshot, save_snapshot, snapshot,
 )
 from security_audit.coverage import rows
 from security_audit.engine import scan

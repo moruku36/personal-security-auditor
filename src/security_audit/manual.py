@@ -112,7 +112,8 @@ def manual_finding(context: Context, kind: str, browser: str = "Chrome") -> Find
         subject + ": " + labels[status], subject,
         PASSWORD_GUIDE if password else EXTENSION_GUIDE,
         status=status,
-        evidence_source=Evidence.UNAVAILABLE if status == Status.UNAVAILABLE else Evidence.USER_UI,
+        evidence_source=(Evidence.UNAVAILABLE if status == Status.UNAVAILABLE else
+                         Evidence.MANUAL if status == Status.UNKNOWN else Evidence.USER_UI),
         limitations=("User-reported aggregate result; the CLI does not verify browser UI or accounts.",
                      "Valid only for the date and browser/profile/account scope the user reviewed.",
                      "An old clear result is not a current safety guarantee."),

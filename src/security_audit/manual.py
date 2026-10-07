@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 import stat
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from security_audit.model import Evidence, Finding, Risk, Status
@@ -41,7 +41,7 @@ def validate_date(value: object) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         raise ValueError("Invalid check date")
     parsed = date.fromisoformat(value)
-    if parsed > datetime.now(timezone.utc).astimezone().date():
+    if parsed > datetime.now(UTC).astimezone().date():
         raise ValueError("Check date is in the future")
     return value
 
@@ -90,7 +90,7 @@ def save_record(path: Path, result: str, checked_on: str | None = None) -> None:
         if checked_on is not None:
             raise ValueError("Unchecked has no check date")
     else:
-        checked_on = validate_date(datetime.now(timezone.utc).astimezone().date().isoformat() if checked_on is None else checked_on)
+        checked_on = validate_date(datetime.now(UTC).astimezone().date().isoformat() if checked_on is None else checked_on)
     write_private(path, json.dumps({"result": result, "checked_on": checked_on}) + "\n")
 
 

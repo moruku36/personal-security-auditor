@@ -7,7 +7,7 @@ import os
 import tempfile
 import unittest
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -63,7 +63,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             save_record(record_path(home, "password"), "issues")
             finding = manual_finding(Context(home, home), "password")
             self.assertEqual(finding.status, Status.ISSUE)
-            self.assertEqual(finding.checked_on, datetime.now(timezone.utc).astimezone().date().isoformat())
+            self.assertEqual(finding.checked_on, datetime.now(UTC).astimezone().date().isoformat())
             self.assertEqual(finding.risk, Risk.MEDIUM)
 
     def test_invalid_manual_data_is_unavailable_and_never_reported(self) -> None:
@@ -73,7 +73,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             {"result": fake, "checked_on": None},
             {"result": "clear", "checked_on": fake},
             {"result": "clear", "checked_on": "2020-02-30"},
-            {"result": "clear", "checked_on": (datetime.now(timezone.utc).astimezone().date() + timedelta(days=1)).isoformat()},
+            {"result": "clear", "checked_on": (datetime.now(UTC).astimezone().date() + timedelta(days=1)).isoformat()},
             {"result": "unchecked", "checked_on": "2020-01-01"},
             [fake],
         )
@@ -147,7 +147,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             self.assertIn("Google Password Manager > Checkup", output.getvalue())
             self.assertFalse(record_path(home, "password").exists())
             self.assertEqual(read_record(record_path(home, "extensions")), (
-                Status.ISSUE, datetime.now(timezone.utc).astimezone().date().isoformat()))
+                Status.ISSUE, datetime.now(UTC).astimezone().date().isoformat()))
 
     def test_stable_id_does_not_depend_on_state_risk_or_counts(self) -> None:
         finding = Finding("BR-011", Risk.INFO, "before", "Google Password Checkup", "review")

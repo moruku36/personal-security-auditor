@@ -8,7 +8,12 @@ from security_audit.comparison import compare, read_snapshot, save_snapshot, sna
 from security_audit.coverage import as_coverage
 from security_audit.engine import CATEGORIES, scan
 from security_audit.manual import (
-    BROWSERS, RESULTS, forget_record, manual_finding, record_path, save_record,
+    BROWSERS,
+    RESULTS,
+    forget_record,
+    manual_finding,
+    record_path,
+    save_record,
 )
 from security_audit.remediation import apply_permission, target
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private

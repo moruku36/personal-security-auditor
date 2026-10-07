@@ -7,25 +7,27 @@ import os
 import tempfile
 import unittest
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from security_audit.cli import main
-from security_audit.comparison import (
-    compare, read_snapshot, save_snapshot, snapshot,
-)
+from security_audit.comparison import compare, read_snapshot, save_snapshot, snapshot
 from security_audit.coverage import rows
 from security_audit.engine import scan
 from security_audit.manual import (
-    MAX_RECORD_BYTES, manual_finding, read_record, record_path, save_record,
+    MAX_RECORD_BYTES,
+    manual_finding,
+    read_record,
+    record_path,
+    save_record,
 )
 from security_audit.model import Evidence, Finding, Risk, Status
 from security_audit.reporting import as_json, as_markdown, as_terminal
 from security_audit.scanners.base import Context
 from security_audit.scanners.browser import BrowserScanner
-from security_audit.scanners.os_security import OSScanner
 from security_audit.scanners.network import NetworkScanner
+from security_audit.scanners.os_security import OSScanner
 
 
 class ReviewFeaturesTests(unittest.TestCase):
@@ -61,7 +63,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             save_record(record_path(home, "password"), "issues")
             finding = manual_finding(Context(home, home), "password")
             self.assertEqual(finding.status, Status.ISSUE)
-            self.assertEqual(finding.checked_on, date.today().isoformat())
+            self.assertEqual(finding.checked_on, datetime.now(timezone.utc).astimezone().date().isoformat())
             self.assertEqual(finding.risk, Risk.MEDIUM)
 
     def test_invalid_manual_data_is_unavailable_and_never_reported(self) -> None:
@@ -71,7 +73,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             {"result": fake, "checked_on": None},
             {"result": "clear", "checked_on": fake},
             {"result": "clear", "checked_on": "2020-02-30"},
-            {"result": "clear", "checked_on": (date.today() + timedelta(days=1)).isoformat()},
+            {"result": "clear", "checked_on": (datetime.now(timezone.utc).astimezone().date() + timedelta(days=1)).isoformat()},
             {"result": "unchecked", "checked_on": "2020-01-01"},
             [fake],
         )
@@ -145,7 +147,7 @@ class ReviewFeaturesTests(unittest.TestCase):
             self.assertIn("Google Password Manager > Checkup", output.getvalue())
             self.assertFalse(record_path(home, "password").exists())
             self.assertEqual(read_record(record_path(home, "extensions")), (
-                Status.ISSUE, date.today().isoformat()))
+                Status.ISSUE, datetime.now(timezone.utc).astimezone().date().isoformat()))
 
     def test_stable_id_does_not_depend_on_state_risk_or_counts(self) -> None:
         finding = Finding("BR-011", Risk.INFO, "before", "Google Password Checkup", "review")
@@ -175,34 +177,34 @@ class ReviewFeaturesTests(unittest.TestCase):
         for system, roots in (("Darwin", BrowserScanner.MAC_ROOTS),
                               ("Windows", BrowserScanner.WINDOWS_ROOTS)):
             for browser, relative in roots.items():
-                with self.subTest(system=system, browser=browser):
-                    with tempfile.TemporaryDirectory() as directory:
-                        home = Path(directory).resolve()
-                        root = home / relative
-                        extension = root / "Default/Extensions/synthetic-id/1.0/manifest.json"
-                        extension.parent.mkdir(parents=True)
-                        extension.write_text('{"permissions":["cookies"]}', encoding="utf-8")
-                        context = Context(home, home, system=system)
-                        save_record(record_path(home, "extensions", browser), "clear", "2020-01-01")
-                        with (patch("security_audit.scanners.browser._extension_policy_status",
-                                    return_value="not-configured"),
-                              patch("security_audit.scanners.browser._safe_browsing_policy_status",
-                                    return_value="not-configured")):
-                            findings = BrowserScanner().scan(context)
-                        scope = next(item for item in findings if item.code == "BR-003")
-                        effective = next(item for item in findings if item.code == "BR-012")
-                        self.assertEqual(effective.evidence_source, Evidence.USER_UI)
-                        self.assertEqual(effective.status, Status.PASS)
-                        if browser == "Chrome":
-                            declaration = next(item for item in findings if item.code == "BR-005")
-                            self.assertEqual(declaration.evidence_source, Evidence.MANIFEST)
-                            self.assertEqual(declaration.status, Status.NEEDS_REVIEW)
-                            self.assertEqual(next(item for item in findings if item.code == "BR-011")
-                                             .status, Status.UNKNOWN)
-                        else:
-                            self.assertFalse(any(item.code == "BR-005" for item in findings))
-                            self.assertFalse(any(item.code == "BR-011" for item in findings))
-                            self.assertIn("only", scope.limitations[0])
+                with (self.subTest(system=system, browser=browser),
+                      tempfile.TemporaryDirectory() as directory):
+                    home = Path(directory).resolve()
+                    root = home / relative
+                    extension = root / "Default/Extensions/synthetic-id/1.0/manifest.json"
+                    extension.parent.mkdir(parents=True)
+                    extension.write_text('{"permissions":["cookies"]}', encoding="utf-8")
+                    context = Context(home, home, system=system)
+                    save_record(record_path(home, "extensions", browser), "clear", "2020-01-01")
+                    with (patch("security_audit.scanners.browser._extension_policy_status",
+                                return_value="not-configured"),
+                          patch("security_audit.scanners.browser._safe_browsing_policy_status",
+                                return_value="not-configured")):
+                        findings = BrowserScanner().scan(context)
+                    scope = next(item for item in findings if item.code == "BR-003")
+                    effective = next(item for item in findings if item.code == "BR-012")
+                    self.assertEqual(effective.evidence_source, Evidence.USER_UI)
+                    self.assertEqual(effective.status, Status.PASS)
+                    if browser == "Chrome":
+                        declaration = next(item for item in findings if item.code == "BR-005")
+                        self.assertEqual(declaration.evidence_source, Evidence.MANIFEST)
+                        self.assertEqual(declaration.status, Status.NEEDS_REVIEW)
+                        self.assertEqual(next(item for item in findings if item.code == "BR-011")
+                                         .status, Status.UNKNOWN)
+                    else:
+                        self.assertFalse(any(item.code == "BR-005" for item in findings))
+                        self.assertFalse(any(item.code == "BR-011" for item in findings))
+                        self.assertIn("only", scope.limitations[0])
 
     def test_browser_incomplete_reason_has_correct_browser_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

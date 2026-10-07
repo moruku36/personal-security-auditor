@@ -12,6 +12,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from windows_report_diagnostics import capture_report_diagnostics
+
 from security_audit import engine
 from security_audit.cli import main
 from security_audit.engine import scan
@@ -391,18 +393,24 @@ class SecurityTests(unittest.TestCase):
             self.assertNotIn(fake, stdout.getvalue() + stderr.getvalue() + log_output.getvalue())
 
     def test_report_file_is_private(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            with (patch("pathlib.Path.home", return_value=home),
-                  contextlib.redirect_stdout(io.StringIO())):
-                self.assertEqual(main(["report", "api", "--format", "json", "--output",
-                                       str(home / "reports" / "latest.json")]), 0)
-            path = home / "reports" / "latest.json"
+        events: list[dict[str, str | int]] = []
+        try:
+            with (capture_report_diagnostics(events),
+                  tempfile.TemporaryDirectory() as directory):
+                home = Path(directory)
+                with (patch("pathlib.Path.home", return_value=home),
+                      contextlib.redirect_stdout(io.StringIO())):
+                    self.assertEqual(main(["report", "api", "--format", "json", "--output",
+                                           str(home / "reports" / "latest.json")]), 0)
+                path = home / "reports" / "latest.json"
+                if os.name == "nt":
+                    from security_audit.windows import broad_windows_acl
+                    self.assertFalse(broad_windows_acl(path))
+                else:
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        finally:
             if os.name == "nt":
-                from security_audit.windows import broad_windows_acl
-                self.assertFalse(broad_windows_acl(path))
-            else:
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                print("WINDOWS_REPORT_DIAGNOSTICS " + json.dumps(events), file=sys.stderr)
 
     def test_report_refuses_symlink_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

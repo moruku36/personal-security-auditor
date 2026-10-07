@@ -4,14 +4,26 @@
 
 ## Overview
 
-A local-first CLI for reviewing personal computer security without collecting
-secret values. It produces actionable findings from metadata and selected OS
-status checks.
+A local-first CLI for **defensive security review of your own macOS or Windows
+workstation**. It flags selected OS hardening states, credential-file permissions,
+Chrome extension manifest declarations, and non-loopback TCP listeners, then
+produces local findings and recommendations.
+
+It does not collect password, token, or private-key values. **Google Password
+Checkup is not implemented**; saved-password checks, account protection, and
+browser-effective permissions require separate manual review. A clean report
+is not proof that a device is secure.
+
+Automated tests use synthetic fixtures and Windows-only checks of local PowerShell
+output shapes and temporary-report ACLs. The [physical validation](#physical-validation)
+notes describe point-in-time checks on one Mac and one Windows PC; they do not
+establish coverage or compatibility for every device. See the
+[security model](docs/security-model.md) for data boundaries and limitations.
 
 ## Why
 
-Credentials and agent permissions are scattered across a developer workstation.
-This project provides a safe first pass before deeper manual review.
+Help workstation owners prioritize configuration and permission issues for
+manual review, while keeping sensitive values and host-specific reports local.
 
 ## Features
 
@@ -73,8 +85,9 @@ incomplete; a clean report is not a security certification.
 ## Privacy
 
 Telemetry: off. Cloud upload: off. Remote API: off. Secret collection: off.
-Commands run locally. CI tests use fake credentials only and never audit the
-runner's real environment.
+Commands run locally. CI uses fake credential fixtures, plus Windows-only local
+OS/network probe-shape and temporary-report ACL checks. It does not produce a
+comprehensive audit or security verdict for the runner.
 
 ## Supported Platforms
 
@@ -123,7 +136,7 @@ On 2026-10-06, the macOS scan and permission-fix flow completed on one physical 
 
 On 2026-10-06, the CLI's OS and browser scans also completed on one physical Windows PC, and creation of a report with a user-only ACL was confirmed. A manual browser UI review checked the visible protection state and reviewed enabled extensions' displayed permissions/site access against publisher and store/developer information supplied for verification. An AI-service UI review covered its approved-site list and the scope shown for the conversation on screen. Host-specific findings, extension and site names, account identifiers, screenshots and reports are not published here.
 
-These are point-in-time execution and UI checks on individual hosts and visible contexts. They are not a security certification, a guarantee for other machines or sessions, proof of absence of malicious code, or a compatibility guarantee. The CLI's Chrome manifest scan reports declarations and stored metadata; it does not independently establish effective grants or publisher identity. CI uses synthetic fixtures and does not audit the runner's real environment or replace physical-device validation. Some checks may be unavailable depending on host permissions or sandboxing.
+These are point-in-time execution and UI checks on individual hosts and visible contexts. They are not a security certification, a guarantee for other machines or sessions, proof of absence of malicious code, or a compatibility guarantee. The CLI's Chrome manifest scan reports declarations and stored metadata; it does not independently establish effective grants or publisher identity. CI combines synthetic fixtures with limited Windows local probes and report-ACL checks; it does not certify the runner or replace physical-device validation. Some checks may be unavailable depending on host permissions or sandboxing.
 
 ## Roadmap
 

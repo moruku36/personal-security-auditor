@@ -17,7 +17,7 @@ from windows_report_diagnostics import capture_report_diagnostics
 from security_audit import engine
 from security_audit.cli import main
 from security_audit.engine import scan
-from security_audit.model import Finding
+from security_audit.model import Finding, Status
 from security_audit.remediation import target
 from security_audit.reporting import as_json, as_markdown, as_terminal, write_private
 from security_audit.scanners.base import Context
@@ -91,7 +91,8 @@ class SecurityTests(unittest.TestCase):
                     return_value=(0, "Firewall is disabled")),
               patch.dict(os.environ, {"CODEX_SANDBOX": "seatbelt"})):
             findings = OSScanner().scan(Context(Path(directory), Path(directory), system="Darwin"))
-        self.assertFalse(any(item.code == "OS-002" for item in findings))
+        self.assertTrue(any(item.code == "OS-002" and item.status == Status.UNAVAILABLE
+                            for item in findings))
 
     def test_windows_os_status_and_missing_checks(self) -> None:
         status = {"encryption": "off", "firewall": "on", "antivirus": "passive",
@@ -104,7 +105,8 @@ class SecurityTests(unittest.TestCase):
                             for item in findings))
         self.assertTrue(any(item.title == "Microsoft Defender is passive" for item in findings))
         self.assertTrue(any(item.title == "Secure Boot status unavailable" for item in findings))
-        self.assertFalse(any(item.code == "OS-W02" for item in findings))
+        self.assertTrue(any(item.code == "OS-W02" and item.status == Status.PASS
+                            for item in findings))
 
     def test_windows_listener_output_rejects_addresses_and_invalid_ports(self) -> None:
         payload = {"listeners": [{"port": 8080, "bind": "network"},

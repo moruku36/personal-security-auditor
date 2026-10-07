@@ -8,7 +8,7 @@
 OSの保護設定、認証情報を置くファイルの権限、Chrome拡張のmanifest宣言、
 ループバック以外で待ち受けるTCPポートなどを調べ、確認すべき点と推奨対応をまとめます。
 
-パスワード、トークン、秘密鍵の値は収集しません。**Google Password Checkupは未実装**です。
+パスワード、トークン、秘密鍵の値は収集しません。**Google Password Checkupの案内と確認結果の記録に対応**しています。
 保存済みパスワードやアカウント保護、ブラウザー上で実際に有効な権限は別途手動で確認します。
 指摘がないことは、端末が安全である証明にはなりません。
 
@@ -32,6 +32,9 @@ MacとWindows各1台での確認は、その時点の範囲に限られます。
 - 開発用CLIの存在と認証ファイルの権限
 - macOS/Windowsでローカル以外を待ち受けるTCPポートとAIエージェント設定ディレクトリ
 - Terminal、Markdown、JSONレポートと権限修正のプレビュー
+- Password Checkupへの案内と、結果・確認日だけのローカル記録
+- Findingの安定ID、確認状態、証拠の種類、制限事項
+- OS／ブラウザー別の対応・fixture・実機確認一覧と、任意の前回比較
 
 ## アーキテクチャ
 
@@ -60,6 +63,27 @@ security-audit report --format markdown --output reports/latest.md
 security-audit fix            # プレビューのみ
 security-audit fix --apply    # 表示された権限変更を適用
 ```
+
+## 手動確認と前回比較
+
+```sh
+security-audit password-checkup
+security-audit password-checkup --result clear
+security-audit password-checkup --result issues --date 2026-10-08
+security-audit browser-review Chrome --result clear
+security-audit coverage
+security-audit scan browser --snapshot reports/browser-baseline.json
+security-audit scan browser --compare reports/browser-baseline.json
+```
+
+結果は`clear`（問題なし）／`issues`（問題あり）／`unchecked`（未確認）です。
+保存するのは結果と確認日だけで、`--forget`で手動記録を削除できます。
+未確認や記録なしは合格にしません。CLIは保存パスワードを読みません。
+manifestの宣言と画面で確認した実効権限の自己申告は別の証拠として表示します。
+前回比較ではID・状態・検査範囲／仕様の情報だけを保存し、
+消えた指摘を自動的に解決済みとは判断しません。
+詳細は[手動確認・schema・比較](docs/review-and-comparison.ja.md)と
+[対応・検証マトリクス](docs/coverage.md)を参照してください。
 
 ## セキュリティモデル
 
@@ -120,7 +144,7 @@ WindowsのACL検査は読み取り専用で、自動修正しない。
 
 ## ロードマップ
 
-今後の拡張案と安全境界は[セキュリティ監査ロードマップ](docs/roadmap.ja.md)を参照。記載項目は将来案であり、現時点で実装・有効化されている機能ではない。
+今後の拡張案と安全境界は[セキュリティ監査ロードマップ](docs/roadmap.ja.md)を参照。状態管理・手動確認の案内・対応表・比較の初期実装は追加済みです。残りの拡張案と安全境界を記載しています。
 
 ## コントリビューション
 

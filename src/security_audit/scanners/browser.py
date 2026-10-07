@@ -6,7 +6,8 @@ import stat
 from pathlib import Path
 from typing import ClassVar
 
-from security_audit.model import Finding, Risk
+from security_audit.manual import manual_finding
+from security_audit.model import Evidence, Finding, Risk, Status
 from security_audit.scanners.base import Context
 
 MAX_PROFILES = 20
@@ -194,14 +195,41 @@ class BrowserScanner:
 
     def scan(self, context: Context) -> list[Finding]:
         findings: list[Finding] = []
+        if context.system not in ("Darwin", "Windows"):
+            return [Finding("BR-000", Risk.INFO, "Browser adapter is unavailable", "browser",
+                            "Review browser security settings manually.",
+                            status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
+                            limitations=("Browser profile discovery is implemented for macOS/Windows.",))]
         roots = self.WINDOWS_ROOTS if context.system == "Windows" else self.MAC_ROOTS
         chrome_found = False
         for browser, relative in roots.items():
             root = context.home / relative
-            if _is_reparse_point(root) or not root.is_dir():
+            try:
+                if _is_reparse_point(root):
+                    raise ValueError("Redirected browser root")
+                if not root.is_dir():
+                    continue
+            except (OSError, ValueError):
+                findings.append(Finding("BR-008", Risk.INFO,
+                    "Browser directory inspection is unavailable", browser,
+                    "Review this browser manually.", status=Status.UNAVAILABLE,
+                    evidence_source=Evidence.UNAVAILABLE,
+                    limitations=("The browser directory is inaccessible or redirected.",)))
                 continue
             findings.append(Finding("BR-001", Risk.INFO, f"{browser} data directory found",
-                                    browser, "Review browser updates and security settings."))
+                                    browser, "Review browser updates and security settings.",
+                                    status=Status.OBSERVED, evidence_source=Evidence.METADATA,
+                                    limitations=("A data directory does not establish installation or use.",)))
+            scope = ("Bounded Chrome manifest declarations; selected Windows registry policies."
+                     if browser == "Chrome" else
+                     "Extension directory counts only; manifests and policies are not inspected."
+                     if browser in ("Brave", "Edge") else
+                     "Data-directory presence only; extensions and policies are not inspected.")
+            findings.append(Finding("BR-003", Risk.INFO, browser + " inspection scope",
+                                    browser, "Review effective settings in the browser UI.",
+                                    status=Status.OBSERVED, evidence_source=Evidence.METADATA,
+                                    limitations=(scope, "No authentication databases are read.")))
+            findings.append(manual_finding(context, "extensions", browser))
             if browser not in ("Chrome", "Brave", "Edge"):
                 continue
             chrome_found = chrome_found or browser == "Chrome"
@@ -289,33 +317,54 @@ class BrowserScanner:
             if extension_count:
                 findings.append(Finding("BR-002", Risk.LOW,
                     f"{extension_count} extension directory or directories found", browser,
-                    "Inspect extension publishers and permissions in the browser UI."))
-            location = "Chrome extension metadata"
+                    "Inspect extension publishers and permissions in the browser UI.",
+                    status=Status.OBSERVED, evidence_source=Evidence.METADATA,
+                    limitations=("Stored directories do not establish enabled extensions.",)))
+            location = browser + " extension metadata"
             if broad_host_count:
                 findings.append(Finding("BR-004", Risk.MEDIUM,
                     f"{broad_host_count} stored extension package(s) declare broad website access",
-                    location, "Review active extension site access in the browser UI."))
+                    location, "Review active extension site access in the browser UI.",
+                    evidence_source=Evidence.MANIFEST,
+                    limitations=("Declarations include optional and stored package permissions.",
+                                 "Active extensions and effective site grants are not determined.")))
             if review_permission_count:
                 findings.append(Finding("BR-005", Risk.LOW,
                     f"{review_permission_count} stored extension package(s) request "
                     "high-impact permissions",
-                    location, "Review the requested permissions and publisher in the browser UI."))
+                    location, "Review the requested permissions and publisher in the browser UI.",
+                    evidence_source=Evidence.MANIFEST,
+                    limitations=("Requested/optional permissions do not establish effective grants.",)))
             if custom_update_count:
                 findings.append(Finding("BR-006", Risk.MEDIUM,
                     f"{custom_update_count} stored extension package(s) declare "
                     "a nonstandard update URL",
-                    location, "Verify the extension source and update policy in the browser UI."))
+                    location, "Verify the extension source and update policy in the browser UI.",
+                    evidence_source=Evidence.MANIFEST,
+                    limitations=("An update URL does not independently establish publisher identity.",)))
             if unknown_update_count:
                 findings.append(Finding("BR-007", Risk.INFO,
                     "Update source could not be determined from "
                     f"{unknown_update_count} stored extension package(s)",
                     location,
-                    "Confirm each active extension's source and update status in the browser UI."))
+                    "Confirm each active extension's source and update status in the browser UI.",
+                    status=Status.UNKNOWN, evidence_source=Evidence.MANIFEST,
+                    limitations=("Missing update declarations do not establish a package source.",)))
             if incomplete:
                 findings.append(Finding("BR-008", Risk.INFO,
                     "Some browser extension metadata could not be inspected",
-                    location, "Review active extensions in the browser UI."))
+                    location, "Review active extensions in the browser UI.",
+                    status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
+                    limitations=("Enumeration was capped, inaccessible, or contained unreadable metadata.",)))
 
+        if not any(item.code == "BR-001" for item in findings):
+            findings.append(Finding("BR-013", Risk.INFO,
+                "No supported browser data directory was detected", "browser discovery",
+                "Check installed browsers manually.", status=Status.UNKNOWN,
+                evidence_source=Evidence.METADATA,
+                limitations=("Directory discovery does not establish browser absence or protection.",)))
+        if chrome_found:
+            findings.append(manual_finding(context, "password"))
         if chrome_found and context.system == "Windows":
             policy_status = _extension_policy_status(context.system)
             if policy_status == "configured":
@@ -330,7 +379,11 @@ class BrowserScanner:
                 title = "Chrome ExtensionSettings policy status is unavailable"
                 recommendation = "Review managed extension settings in chrome://policy."
             findings.append(Finding("BR-009", Risk.INFO, title, "Chrome policy",
-                                    recommendation))
+                                    recommendation,
+                                    status=Status.UNAVAILABLE if policy_status == "unknown"
+                                    else Status.OBSERVED,
+                                    evidence_source=Evidence.POLICY,
+                                    limitations=("Registry presence is not the effective browser policy.",)))
             safe_browsing = _safe_browsing_policy_status(context.system)
             if safe_browsing == "disabled":
                 findings.append(Finding(
@@ -338,25 +391,34 @@ class BrowserScanner:
                     "Chrome Safe Browsing policy explicitly selects no protection",
                     "Chrome security policy",
                     "Verify the effective value in chrome://policy and review the setting "
-                    "in chrome://settings/security."))
+                    "in chrome://settings/security.",
+                    status=Status.ISSUE, evidence_source=Evidence.POLICY,
+                    limitations=("This is configured registry policy, not effective browser state.",)))
             elif safe_browsing == "conflicting":
                 findings.append(Finding(
                     "BR-010", Risk.INFO,
                     "Chrome Safe Browsing policy values conflict across registry hives",
                     "Chrome security policy",
                     "Review the effective value in chrome://policy; the checked registry "
-                    "values do not identify which setting is effective."))
+                    "values do not identify which setting is effective.",
+                    status=Status.UNKNOWN, evidence_source=Evidence.POLICY,
+                    limitations=("Conflicting policy values do not establish effective protection.",)))
             elif safe_browsing in ("standard", "enhanced"):
                 findings.append(Finding(
                     "BR-010", Risk.INFO,
                     f"Chrome Safe Browsing policy is set to {safe_browsing} protection",
                     "Chrome security policy",
                     "Confirm the effective value in chrome://policy; this registry check "
-                    "does not include cloud policy or user preferences."))
+                    "does not include cloud policy or user preferences.",
+                    status=Status.OBSERVED, evidence_source=Evidence.POLICY,
+                    limitations=("Configured policy does not establish effective browser protection.",)))
             else:
                 findings.append(Finding(
                     "BR-010", Risk.INFO,
                     "Chrome Safe Browsing effective setting is unknown",
                     "Chrome security policy",
-                    "Review chrome://settings/security and chrome://policy in Chrome."))
+                    "Review chrome://settings/security and chrome://policy in Chrome.",
+                    status=Status.UNAVAILABLE if safe_browsing == "unknown" else Status.UNKNOWN,
+                    evidence_source=Evidence.POLICY,
+                    limitations=("User preferences and cloud policy are not inspected.",)))
         return findings

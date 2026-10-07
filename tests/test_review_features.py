@@ -30,7 +30,7 @@ from security_audit.scanners.network import NetworkScanner
 from security_audit.scanners.os_security import OSScanner
 
 
-class ReviewFeaturesTests(unittest.TestCase):
+class RecordPermissionTests(unittest.TestCase):
     def test_manual_check_stores_only_result_and_date_and_is_private(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory).resolve()
@@ -48,6 +48,15 @@ class ReviewFeaturesTests(unittest.TestCase):
             self.assertEqual(finding.evidence_source, Evidence.USER_UI)
             self.assertIn("User-reported", finding.limitations[0])
             self.assertEqual(finding.checked_on, "2020-01-02")
+
+
+class ReviewFeaturesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # These tests exercise synthetic result/schema fixtures. Real ACL creation
+        # is verified separately by RecordPermissionTests and existing report tests.
+        acl = patch("security_audit.reporting.restrict_windows_acl", return_value=True)
+        acl.start()
+        self.addCleanup(acl.stop)
 
     def test_unchecked_and_missing_are_unknown_and_have_no_date(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

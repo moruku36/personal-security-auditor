@@ -46,6 +46,15 @@ def validate_date(value: object) -> str:
     return value
 
 
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate state key")
+        value[key] = item
+    return value
+
+
 def read_bounded_json(path: Path, limit: int) -> object:
     if _has_reparse_ancestor(path):
         raise ValueError("State path contains a link or reparse point")
@@ -56,7 +65,7 @@ def read_bounded_json(path: Path, limit: int) -> object:
         content = handle.read(limit + 1)
     if len(content.encode("utf-8")) > limit:
         raise ValueError("State file exceeds limit")
-    return json.loads(content)
+    return json.loads(content, object_pairs_hook=_unique_json_object)
 
 
 def read_record(path: Path) -> tuple[Status, str | None]:

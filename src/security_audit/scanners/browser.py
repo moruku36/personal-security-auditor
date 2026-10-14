@@ -6,8 +6,9 @@ import stat
 from pathlib import Path
 from typing import ClassVar
 
-from security_audit.manual import manual_finding
+from security_audit.manual import _unique_json_object, manual_finding
 from security_audit.model import Evidence, Finding, Risk, Status
+from security_audit.reporting import _has_reparse_ancestor
 from security_audit.scanners.base import Context
 
 MAX_PROFILES = 20
@@ -75,7 +76,10 @@ def _read_manifest(path: Path, profile: Path) -> dict[str, object] | None:
         resolved = path.resolve(strict=True)
         resolved.relative_to(profile.resolve(strict=True))
         with path.open("r", encoding="utf-8") as handle:
-            value = json.load(handle)
+            content = handle.read(MAX_MANIFEST_BYTES + 1)
+        if len(content.encode("utf-8")) > MAX_MANIFEST_BYTES:
+            return None
+        value = json.loads(content, object_pairs_hook=_unique_json_object)
     except (OSError, ValueError, UnicodeError, RecursionError):
         return None
     return value if isinstance(value, dict) else None
@@ -208,7 +212,7 @@ class BrowserScanner:
         for browser, relative in roots.items():
             root = context.home / relative
             try:
-                if _is_reparse_point(root):
+                if _has_reparse_ancestor(root) or _is_reparse_point(root):
                     raise ValueError("Redirected browser root")
                 if not root.is_dir():
                     continue
@@ -257,10 +261,14 @@ class BrowserScanner:
                     incomplete = True
                     continue
                 extension_root = profile / "Extensions"
-                if _is_reparse_point(extension_root):
+                try:
+                    if _is_reparse_point(extension_root):
+                        incomplete = True
+                        continue
+                    if not extension_root.is_dir():
+                        continue
+                except OSError:
                     incomplete = True
-                    continue
-                if not extension_root.is_dir():
                     continue
                 extension_dirs, capped, failed = _bounded_directories(
                     extension_root, MAX_EXTENSIONS_PER_PROFILE)
@@ -277,6 +285,8 @@ class BrowserScanner:
                         data = _read_manifest(version / "manifest.json", profile)
                         if data is not None:
                             manifests.append(data)
+                        else:
+                            incomplete = True
                     if not manifests:
                         incomplete = True
                         continue
@@ -288,27 +298,43 @@ class BrowserScanner:
                     for manifest in manifests:
                         permissions: set[str] = set()
                         for key in ("permissions", "optional_permissions"):
-                            value = manifest.get(key)
+                            value = manifest.get(key, [])
                             if isinstance(value, list):
+                                incomplete |= any(not isinstance(item, str) for item in value)
                                 permissions.update(item.casefold() for item in value
                                                    if isinstance(item, str))
+                            else:
+                                incomplete = True
                         extension_has_review_permission |= bool(permissions & REVIEW_PERMISSIONS)
 
-                        host_patterns: list[object] = []
+                        # Stored Manifest V2 packages put host declarations in
+                        # permissions/optional_permissions rather than separate keys.
+                        host_patterns: list[object] = list(permissions)
                         for key in ("host_permissions", "optional_host_permissions"):
-                            value = manifest.get(key)
+                            value = manifest.get(key, [])
                             if isinstance(value, list):
+                                incomplete |= any(not isinstance(item, str) for item in value)
                                 host_patterns.extend(value)
-                        content_scripts = manifest.get("content_scripts")
+                            else:
+                                incomplete = True
+                        content_scripts = manifest.get("content_scripts", [])
                         if isinstance(content_scripts, list):
                             for script in content_scripts:
                                 if (isinstance(script, dict)
                                         and isinstance(script.get("matches"), list)):
+                                    incomplete |= any(not isinstance(item, str)
+                                                      for item in script["matches"])
                                     host_patterns.extend(script["matches"])
+                                else:
+                                    incomplete = True
+                        else:
+                            incomplete = True
                         extension_has_broad_host |= any(_broad_host_pattern(item)
                                                         for item in host_patterns)
 
                         update_url = manifest.get("update_url")
+                        if "update_url" in manifest and not isinstance(update_url, str):
+                            incomplete = True
                         if isinstance(update_url, str) and update_url.strip():
                             extension_has_explicit_update = True
                             extension_has_custom_update |= (

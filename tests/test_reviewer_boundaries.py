@@ -26,7 +26,7 @@ class ReviewerBoundaryTests(unittest.TestCase):
 
     def test_nested_duplicate_json_rejected_even_inside_array(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "state.json"
+            path = Path(directory).resolve() / "state.json"
             for content in ('{"nested":{"result":"issues","result":"clear"}}',
                             '{"nested":[{"status":"issue","status":"pass"}]}'):
                 with self.subTest(content=content):
@@ -36,7 +36,7 @@ class ReviewerBoundaryTests(unittest.TestCase):
 
     def test_record_missing_unreadable_empty_and_clean_are_distinct(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "state.json"
+            path = Path(directory).resolve() / "state.json"
             self.assertEqual(read_record(path), (Status.UNKNOWN, None))
             path.write_text('', encoding="utf-8")
             self.assertEqual(read_record(path), (Status.UNAVAILABLE, None))

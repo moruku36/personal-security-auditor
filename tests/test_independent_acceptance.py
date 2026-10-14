@@ -21,21 +21,21 @@ from security_audit.scanners.browser import BrowserScanner
 class IndependentAcceptanceTests(unittest.TestCase):
     def test_duplicate_manual_result_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "record.json"
+            path = Path(directory).resolve() / "record.json"
             path.write_text('{"result":"issues","result":"clear",'
                             '"checked_on":"2020-01-01"}', encoding="utf-8")
             self.assertEqual(read_record(path), (Status.UNAVAILABLE, None))
 
     def test_duplicate_manual_date_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "record.json"
+            path = Path(directory).resolve() / "record.json"
             path.write_text('{"result":"clear","checked_on":"SYNTHETIC_CANARY",'
                             '"checked_on":"2020-01-01"}', encoding="utf-8")
             self.assertEqual(read_record(path), (Status.UNAVAILABLE, None))
 
     def test_duplicate_snapshot_status_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "snapshot.json"
+            path = Path(directory).resolve() / "snapshot.json"
             path.write_text('{"schema_version":1,"identity_version":1,"scope":"scope",'
                             '"findings":[{"id":"' + "a" * 64 + '",'
                             '"status":"issue","status":"pass"}]}', encoding="utf-8")
@@ -44,7 +44,7 @@ class IndependentAcceptanceTests(unittest.TestCase):
 
     def test_duplicate_snapshot_version_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "snapshot.json"
+            path = Path(directory).resolve() / "snapshot.json"
             path.write_text('{"schema_version":999,"schema_version":1,'
                             '"identity_version":1,"scope":"scope","findings":[]}',
                             encoding="utf-8")
@@ -120,7 +120,7 @@ class IndependentAcceptanceTests(unittest.TestCase):
 
     def test_valid_snapshot_still_round_trips(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "snapshot.json"
+            path = Path(directory).resolve() / "snapshot.json"
             value = Snapshot("scope", {"a" * 64: Status.ISSUE})
             path.write_text(value.serialize(), encoding="utf-8")
             self.assertEqual(read_snapshot(path, "scope"), value)

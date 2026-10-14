@@ -123,7 +123,7 @@ class SecurityTests(unittest.TestCase):
 
     def test_windows_browser_paths_and_shell_profile_presence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             root = home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
             root.mkdir(parents=True)
             (root / "fake-extension").mkdir()
@@ -176,7 +176,7 @@ class SecurityTests(unittest.TestCase):
 
     def test_chrome_disabled_safe_browsing_policy_is_high_risk(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             (home / "AppData/Local/Google/Chrome/User Data/Default").mkdir(parents=True)
             with (patch("security_audit.scanners.browser._extension_policy_status",
                         return_value="not-configured"),
@@ -189,7 +189,7 @@ class SecurityTests(unittest.TestCase):
 
     def test_chrome_conflicting_safe_browsing_policy_is_unknown(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             (home / "AppData/Local/Google/Chrome/User Data/Default").mkdir(parents=True)
             with (patch("security_audit.scanners.browser._extension_policy_status",
                         return_value="not-configured"),
@@ -205,7 +205,7 @@ class SecurityTests(unittest.TestCase):
         fake_name = "FAKE_EXTENSION_NAME_DO_NOT_REPORT"
         fake_url = "https://private.example.invalid/update?token=FAKE_SECRET_DO_NOT_REPORT"
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
                         / fake_id / "1.0" / "manifest.json")
             manifest.parent.mkdir(parents=True)
@@ -229,7 +229,7 @@ class SecurityTests(unittest.TestCase):
 
     def test_chrome_manifest_unknown_update_source_is_not_called_unsafe(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
                         / "fake-extension-id" / "1.0" / "manifest.json")
             manifest.parent.mkdir(parents=True)
@@ -245,7 +245,7 @@ class SecurityTests(unittest.TestCase):
     def test_chrome_scan_never_opens_browser_secret_databases(self) -> None:
         forbidden_names = {"Login Data", "Cookies", "History", "Local State", "Secure Preferences"}
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             profile = home / "AppData/Local/Google/Chrome/User Data/Default"
             extensions = profile / "Extensions" / "fake-extension-id" / "1.0"
             extensions.mkdir(parents=True)
@@ -270,7 +270,7 @@ class SecurityTests(unittest.TestCase):
 
     def test_chrome_scan_skips_oversized_manifest_without_opening_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
+            home = Path(directory).resolve()
             manifest = (home / "AppData/Local/Google/Chrome/User Data/Default/Extensions"
                         / "fake-extension-id" / "1.0" / "manifest.json")
             manifest.parent.mkdir(parents=True)

@@ -66,7 +66,7 @@ class FollowupAcceptanceTests(unittest.TestCase):
             '{"result":"issues","\\u0072esult":"clear","checked_on":"2020-01-01"}',
         )
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "synthetic.json"
+            path = Path(directory).resolve() / "synthetic.json"
             for content in fixtures:
                 with self.subTest(content=content):
                     path.write_text(content, encoding="utf-8")
@@ -75,7 +75,7 @@ class FollowupAcceptanceTests(unittest.TestCase):
 
     def test_missing_empty_malformed_unchecked_and_clear_are_distinct(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "synthetic.json"
+            path = Path(directory).resolve() / "synthetic.json"
             self.assertEqual(read_record(path), (Status.UNKNOWN, None))
             for content in ("", "{}", "[]", '{"result":"clear"}', "null"):
                 with self.subTest(content=content):

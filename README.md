@@ -9,8 +9,8 @@ workstation**. It flags selected OS hardening states, credential-file permission
 Chrome extension manifest declarations, and non-loopback TCP listeners, then
 produces local findings and recommendations.
 
-It does not collect password, token, or private-key values. **Google Password
-Checkup is not implemented**; saved-password checks, account protection, and
+It does not collect password, token, or private-key values. **Google Password Checkup guidance and aggregate result recording are available**.
+Saved-password checks are performed by Google; account protection and
 browser-effective permissions require separate manual review. A clean report
 is not proof that a device is secure.
 
@@ -35,6 +35,9 @@ manual review, while keeping sensitive values and host-specific reports local.
 - Developer CLI presence and credential-store file permissions
 - Non-loopback TCP listeners on macOS and Windows, and AI agent directory permissions
 - Terminal, Markdown and JSON reports; conservative permission fix preview
+- Password Checkup guidance and local aggregate result/date recording
+- Versioned findings with stable IDs, explicit states, evidence and limitations
+- Browser implementation/fixture/device-validation matrix and opt-in local ID/state comparison
 
 ## Architecture
 
@@ -70,6 +73,27 @@ security-audit fix --apply     # permission changes shown by preview
 
 `--repository PATH` selects the repository to inspect. `--full` adds a bounded
 search of direct repositories under `~/Documents` and `~/Developer`.
+
+## Manual review and comparison
+
+```sh
+security-audit password-checkup
+security-audit password-checkup --result clear
+security-audit password-checkup --result issues --date 2026-10-08
+security-audit browser-review Chrome --result clear
+security-audit coverage
+security-audit scan browser --snapshot reports/browser-baseline.json
+security-audit scan browser --compare reports/browser-baseline.json
+```
+
+Results are `clear`, `issues`, or `unchecked`; only result and check date are
+stored privately. `--forget` removes a manual record. Missing/unchecked results
+are unknown, never a pass. CLI guidance does not read saved passwords.
+Manifest declarations and user-reported effective UI review remain separate
+evidence. Comparison keeps only opaque IDs/states and scope/version metadata;
+a missing ID is not automatically resolved.
+See [manual review, schema and comparison](docs/review-and-comparison.md) and
+[coverage/validation matrix](docs/coverage.md).
 
 ## Security Model
 
@@ -140,7 +164,7 @@ These are point-in-time execution and UI checks on individual hosts and visible 
 
 ## Roadmap
 
-See the [security auditor roadmap](docs/roadmap.md) for prioritized extension plans and their safety boundaries. These items are proposals, not implemented or enabled features.
+See the [security auditor roadmap](docs/roadmap.md) for prioritized extension plans and their safety boundaries. The roadmap marks the initial contracts, review guidance, matrix and comparison work implemented here; remaining entries are future proposals.
 
 ## Contributing
 

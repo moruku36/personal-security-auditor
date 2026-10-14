@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from security_audit.model import Finding, Risk
+from security_audit.model import Evidence, Finding, Risk, Status
 from security_audit.safety import run
 from security_audit.scanners.base import Context
 from security_audit.windows import powershell_json
@@ -58,7 +58,8 @@ class OSScanner:
             return self._scan_windows()
         if context.system != "Darwin":
             return [Finding("OS-000", Risk.INFO, "OS adapter is unavailable", "OS",
-                            "Review OS security settings manually.")]
+                            "Review OS security settings manually.", status=Status.UNAVAILABLE,
+                            evidence_source=Evidence.UNAVAILABLE)]
         findings: list[Finding] = []
         checks = [
             ("OS-001", ["/usr/bin/fdesetup", "status"], "FileVault is disabled", "FileVault"),
@@ -68,9 +69,12 @@ class OSScanner:
         ]
         for code, command, title, setting in checks:
             if code == "OS-002" and os.environ.get("CODEX_SANDBOX"):
-                findings.append(Finding("OS-098", Risk.INFO,
+                findings.append(Finding(code, Risk.INFO,
                                         "Firewall status unavailable in sandbox", setting,
-                                        "Review Firewall outside the sandbox or in macOS settings."))
+                                        "Review Firewall outside the sandbox or in macOS settings.",
+                                        status=Status.UNAVAILABLE,
+                                        evidence_source=Evidence.UNAVAILABLE,
+                                        limitations=("The sandbox prevents this check.",)))
                 continue
             status, output = run(command)
             value = output.strip().lower()
@@ -87,26 +91,44 @@ class OSScanner:
                 or (code == "OS-003" and "assessments disabled" in value)
                 or (code == "OS-004" and "status: disabled" in value)
             )
-            if disabled:
+            if disabled and status == 0:
                 findings.append(Finding(code, Risk.HIGH, title, setting,
-                                        f"Review and enable {setting} in macOS settings."))
-            elif not known:
-                findings.append(Finding("OS-098", Risk.INFO, f"{setting} status unavailable",
-                                        setting, f"Review {setting} manually."))
+                                        f"Review and enable {setting} in macOS settings.",
+                                        status=Status.ISSUE,
+                                        evidence_source=Evidence.LOCAL_COMMAND))
+            elif not known or status != 0:
+                findings.append(Finding(code, Risk.INFO, f"{setting} status unavailable",
+                                        setting, f"Review {setting} manually.",
+                                        status=Status.UNAVAILABLE,
+                                        evidence_source=Evidence.UNAVAILABLE,
+                                        limitations=("Local command did not provide a recognized state.",)))
+            else:
+                findings.append(Finding(code, Risk.INFO, f"{setting} is enabled", setting,
+                                        f"Keep {setting} enabled and review periodically.",
+                                        status=Status.PASS,
+                                        evidence_source=Evidence.LOCAL_COMMAND))
         status, output = run(["/usr/sbin/systemsetup", "-getremotelogin"])
         if status == 0 and "remote login: on" in output.lower():
             findings.append(Finding("OS-005", Risk.MEDIUM, "Remote Login is enabled",
-                                    "Remote Login", "Disable it if SSH access is unnecessary."))
-        elif "remote login: off" not in output.lower():
-            findings.append(Finding("OS-098", Risk.INFO, "Remote Login status unavailable",
-                                    "Remote Login", "Review Remote Login in macOS settings."))
+                                    "Remote Login", "Disable it if SSH access is unnecessary.",
+                                    status=Status.NEEDS_REVIEW,
+                                    evidence_source=Evidence.LOCAL_COMMAND))
+        elif status == 0 and "remote login: off" in output.lower():
+            findings.append(Finding("OS-005", Risk.INFO, "Remote Login is disabled",
+                                    "Remote Login", "Enable only if remote SSH access is needed.",
+                                    status=Status.PASS, evidence_source=Evidence.LOCAL_COMMAND))
+        else:
+            findings.append(Finding("OS-005", Risk.INFO, "Remote Login status unavailable",
+                                    "Remote Login", "Review Remote Login in macOS settings.",
+                                    status=Status.UNAVAILABLE,
+                                    evidence_source=Evidence.UNAVAILABLE))
         return findings
 
     def _scan_windows(self) -> list[Finding]:
         status = powershell_json(WINDOWS_STATUS_SCRIPT)
         if not isinstance(status, dict):
-            return [Finding("OS-098", Risk.INFO, "Windows security status unavailable", "Windows",
-                            "Run from Windows PowerShell with the required read permissions.")]
+            status = {}
+
         checks = (
             ("encryption", "OS-W01", Risk.HIGH, "System drive encryption is off", "BitLocker or Device Encryption"),
             ("firewall", "OS-W02", Risk.HIGH, "Active Windows Firewall profile is off", "Windows Firewall"),
@@ -119,16 +141,28 @@ class OSScanner:
             value = status.get(key)
             if value == "off":
                 findings.append(Finding(code, risk, title, setting,
-                                        f"Review and enable {setting} in Windows settings."))
+                                        f"Review and enable {setting} in Windows settings.",
+                                        status=Status.ISSUE,
+                                        evidence_source=Evidence.LOCAL_COMMAND))
             elif key == "firewall" and value == "off_inactive":
                 findings.append(Finding(code, Risk.MEDIUM,
                     "An inactive Windows Firewall profile is off", setting,
-                    "Enable all firewall profiles before using another network."))
+                    "Enable all firewall profiles before using another network.",
+                    status=Status.ISSUE, evidence_source=Evidence.LOCAL_COMMAND))
             elif key == "antivirus" and value == "passive":
-                findings.append(Finding("OS-W98", Risk.INFO,
+                findings.append(Finding(code, Risk.INFO,
                     "Microsoft Defender is passive", setting,
-                    "Verify that another antivirus product provides real-time protection."))
+                    "Verify that another antivirus product provides real-time protection.",
+                    status=Status.NEEDS_REVIEW, evidence_source=Evidence.LOCAL_COMMAND))
             elif value != "on":
-                findings.append(Finding("OS-W98", Risk.INFO, f"{setting} status unavailable",
-                                        setting, f"Review {setting} in Windows Security."))
+                findings.append(Finding(code, Risk.INFO, f"{setting} status unavailable",
+                                        setting, f"Review {setting} in Windows Security.",
+                                        status=Status.UNAVAILABLE,
+                                        evidence_source=Evidence.UNAVAILABLE,
+                                        limitations=("The probe was inaccessible or returned unknown data.",)))
+            else:
+                findings.append(Finding(code, Risk.INFO, f"{setting} is on", setting,
+                                        f"Keep {setting} on and review periodically.",
+                                        status=Status.PASS,
+                                        evidence_source=Evidence.LOCAL_COMMAND))
         return findings

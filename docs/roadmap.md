@@ -1,8 +1,18 @@
 # Security auditor roadmap
 
-This document describes possible future work, not implemented or enabled
-features. Priorities favor clear evidence, predictable contracts and privacy
+This document records initial implementation progress and possible future work. Priorities favor clear evidence, predictable contracts and privacy
 before broader collection or automation.
+
+## Initial implementation progress
+
+Version 0.3.0 adds stable finding IDs, states, evidence/limitations and JSON
+schema 2; aggregate Password Checkup/effective-extension user reports; explicit
+browser scopes; a [coverage/fixture/device matrix](coverage.md); and opt-in
+local ID/state comparison. See [manual review and comparison](review-and-comparison.md).
+The priorities below describe remaining extensions and hardening. New-feature
+physical-device validation, broader typed adapter contracts, exhaustive state
+fixtures, effective-grant adapters for other browsers, scheduling and expanded
+remediation remain future work.
 
 ## Current baseline
 

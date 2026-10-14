@@ -39,3 +39,27 @@ to the settings and visible context checked manually. This is not a
 certification or coverage guarantee. CI exercises behavior with controlled
 fixtures and does not inspect its runner's real environment. See the physical-
 validation notes in the READMEs for scope and limitations.
+
+## Aggregate manual records and snapshots
+
+- Manual Password Checkup/effective-extension records accept only a fixed
+  result and valid local check date. No credential values, account/site names,
+  extension identifiers or screenshots are accepted. Missing/unchecked is
+  unknown; inaccessible/malformed is unavailable. User-reported clear is not
+  independent validation of browser state.
+- Records are bounded to 512 bytes; comparison inputs to 1 MB/5,000 entries.
+  Inputs have exact allowlisted keys. Raw contents and parse/error text are
+  never returned.
+- Explicit snapshots contain opaque finding ID/state pairs plus schema,
+  identity and scope digests. They exclude raw reports and personal browser
+  metadata. Hashes are comparison keys, not an anonymity guarantee.
+  Disappearance is not automatic resolution; incompatible scope/schema aborts.
+- The existing private atomic writer is reused: Windows ACLs must succeed
+  before content is written, and an existing file survives a failed save.
+  State/snapshot paths reject redirected ancestors, links and reparse points.
+- No snapshot is retained by ordinary scans; no scheduling or network requests
+  are added. Manual records overwrite a single local result; `--forget`
+  deletes it. Snapshots persist until explicitly replaced/deleted.
+
+See [review and comparison](review-and-comparison.md) for data flow, schema
+compatibility, scope, retention and limitations.

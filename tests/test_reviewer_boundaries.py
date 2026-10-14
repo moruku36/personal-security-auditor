@@ -10,8 +10,7 @@ from unittest.mock import patch
 from security_audit.manual import read_bounded_json, read_record
 from security_audit.model import Status
 from security_audit.scanners.base import Context
-from security_audit.scanners.browser import BrowserScanner
-from security_audit.scanners.browser import _read_manifest
+from security_audit.scanners.browser import BrowserScanner, _read_manifest
 
 
 class ReviewerBoundaryTests(unittest.TestCase):
@@ -77,9 +76,9 @@ class ReviewerBoundaryTests(unittest.TestCase):
                              manifest.parents[2], manifest.parents[1], manifest.parent):
                 with self.subTest(boundary=boundary):
                     with (patch("security_audit.reporting._is_reparse_point",
-                                side_effect=lambda path: path == boundary),
+                                side_effect=lambda path, boundary=boundary: path == boundary),
                           patch("security_audit.scanners.browser._is_reparse_point",
-                                side_effect=lambda path: path == boundary),
+                                side_effect=lambda path, boundary=boundary: path == boundary),
                           patch("security_audit.scanners.browser._read_manifest") as reader):
                         findings = self.scan(home)
                     reader.assert_not_called()

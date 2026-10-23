@@ -65,7 +65,7 @@ security-audit scan --full
 security-audit scan api
 security-audit report --format markdown --output reports/latest.md
 security-audit fix            # プレビューのみ
-security-audit fix --apply    # 表示された権限変更を適用
+security-audit fix --apply    # macOSのみ。Linuxでは非対応（終了コード2）
 ```
 
 ## 手動確認と前回比較

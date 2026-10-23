@@ -155,7 +155,9 @@ Run by the unit tests (`python -m unittest discover -s tests`, in CI on Ubuntu, 
 Windows runners): synthetic trees for every state above, unknown-environment and WSL
 behavior, secret-canary and read-only checks (no write flags, no unexpected subprocess,
 credential files never opened), compatibility of macOS/Windows findings, and the
-Linux-read-only `fix` behavior.
+Linux-read-only `fix` behavior. Tests that create Linux sysfs `major:minor` paths run
+on Ubuntu and macOS because Windows cannot represent those directory names; the
+`fix --apply` unsupported exit code is also checked on Windows.
 
 Not run: any Linux physical-device or per-distribution validation, real firmware or
 real encrypted-root layouts, and real `ufw`, `firewalld` or `systemd` hosts.

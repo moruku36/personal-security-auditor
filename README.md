@@ -72,7 +72,7 @@ security-audit scan api
 security-audit report --format markdown --output reports/latest.md
 security-audit report --format json --output reports/latest.json
 security-audit fix             # preview only
-security-audit fix --apply     # permission changes shown by preview
+security-audit fix --apply     # macOS only; unsupported on Linux (exit 2)
 ```
 
 `--repository PATH` selects the repository to inspect. `--full` adds a bounded

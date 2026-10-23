@@ -94,6 +94,7 @@ class TempCase(unittest.TestCase):
         self.home.mkdir()
 
 
+@unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
 class DiskEncryptionTests(TempCase):
     def test_dm_crypt_directly_under_root_is_on(self) -> None:
         tree = Tree(self.base, devices={"/dev/mapper/root": (253, 0)})
@@ -581,6 +582,7 @@ class ReadOnlyAndNoSecretTests(TempCase):
             put(self.home / relative, "TOKEN=" + CANARY)
         return tree
 
+    @unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
     def test_full_linux_scan_never_reports_values_or_opens_credential_files(self) -> None:
         tree = self.build()
         opened: list[Path] = []
@@ -628,6 +630,7 @@ class ReadOnlyAndNoSecretTests(TempCase):
         self.assertEqual(described.limitations,
                          ("Listening beyond loopback does not establish Internet exposure.",))
 
+    @unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
     def test_all_linux_findings_carry_explicit_evidence_and_status(self) -> None:
         tree = self.build()
         for item in scan(tree.context(self.home), "os") + scan(tree.context(self.home), "network"):
@@ -636,6 +639,17 @@ class ReadOnlyAndNoSecretTests(TempCase):
 
 
 class ReadOnlyRemediationTests(TempCase):
+    def test_linux_fix_apply_is_unsupported_on_every_test_platform(self) -> None:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with (patch("pathlib.Path.home", return_value=self.home),
+              patch("security_audit.cli.Context", partial(Context, system="Linux")),
+              patch("security_audit.cli.scan", return_value=[]),
+              contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr)):
+            self.assertEqual(main(["fix", "--apply", "--repository", str(self.home)]), 2)
+        self.assertIn("Unsupported", stderr.getvalue())
+        self.assertIn("Nothing was changed", stderr.getvalue())
+        self.assertNotIn("complete", stdout.getvalue())
+
     @unittest.skipIf(os.name == "nt", "POSIX modes are not meaningful on Windows")
     def test_linux_reports_no_fixable_finding_and_fix_changes_nothing(self) -> None:
         key = put(self.home / ".ssh" / "id_test", "FAKE")

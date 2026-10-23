@@ -13,7 +13,7 @@ Password Checkup／実効拡張権限の自己申告記録、ブラウザー別�
 
 ## 現在の基盤
 
-CLIは独立したscannerを`detect`、`scan`、`recommendations`で呼び出します。findingは不変で、レポート層にはrawコマンド出力やファイル本文を渡しません。OS検査はmacOSとWindowsの一部に対応し、Linuxは未対応範囲を明示します。ブラウザーごとの範囲は異なり、Chromeは上限付きmanifestと一部のWindowsポリシーを確認します。Brave／Edgeは現在拡張ディレクトリ数の集計、Firefoxはブラウザーの存在確認です。同等の監査として扱いません。詳細は[Windows検査範囲](windows.md)を参照してください。
+CLIは独立したscannerを`detect`、`scan`、`recommendations`で呼び出します。findingは不変で、レポート層にはrawコマンド出力やファイル本文を渡しません。OS検査はmacOS、Windows、Linuxの一部に対応します。Linuxは読み取り専用で、合成fixtureで試験済み・実機未検証であり、判定できない構成は`unknown`／`not_supported`を返します。ブラウザーごとの範囲は異なり、Chromeは上限付きmanifestと一部のWindowsポリシーを確認します。Brave／Edgeは現在拡張ディレクトリ数の集計、Firefoxはブラウザーの存在確認です。同等の監査として扱いません。詳細は[Windows検査範囲](windows.md)を参照してください。
 
 ## 優先順位
 

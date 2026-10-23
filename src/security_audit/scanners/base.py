@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from security_audit.linux import LinuxSources
 from security_audit.model import Finding
 
 
@@ -15,6 +16,7 @@ class Context:
     repository: Path
     full: bool = False
     system: str = field(default_factory=platform.system)
+    linux: LinuxSources = field(default_factory=LinuxSources)
 
 
 class Scanner(Protocol):

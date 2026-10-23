@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 
 from security_audit.model import Finding, Risk
-from security_audit.permissions import broad_access
+from security_audit.permissions import auto_fixable, broad_access
 from security_audit.scanners.base import Context
 
 
@@ -47,7 +47,7 @@ class DevelopmentScanner:
                 findings.append(Finding("DEV-003", Risk.HIGH,
                     f"{product} configuration is accessible to others", "~/" + relative,
                     "Restrict file access after reviewing access needs.",
-                    context.system != "Windows"))
+                    auto_fixable(context.system)))
             elif exposure is None:
                 findings.append(Finding("DEV-098", Risk.INFO,
                     f"{product} permissions unavailable", "~/" + relative,

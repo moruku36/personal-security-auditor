@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib
+import itertools
 import json
 import stat
 from pathlib import Path
 from typing import ClassVar
 
+from security_audit.linux import read_bytes
 from security_audit.manual import _unique_json_object, manual_finding
 from security_audit.model import Evidence, Finding, Risk, Status
 from security_audit.reporting import _has_reparse_ancestor
@@ -17,6 +19,9 @@ MAX_VERSIONS_PER_EXTENSION = 10
 MAX_MANIFEST_BYTES = 256_000
 CHROME_STORE_UPDATE_URL = "https://clients2.google.com/service/update2/crx"
 BROAD_HOST_PATTERNS = frozenset({"<all_urls>", "*://*/*", "http://*/*", "https://*/*", "file:///*"})
+MAX_POLICY_FILES = 50
+BROWSER_PLATFORMS = "Browser profile discovery is implemented for macOS, Windows and Linux."
+LINUX_CHROME_POLICY_DIR = "opt/chrome/policies/managed"
 REVIEW_PERMISSIONS = frozenset({
     "clipboardread", "cookies", "debugger", "downloads", "history", "management",
     "nativemessaging", "privacy", "proxy", "tabs", "webnavigation", "webrequest",
@@ -178,6 +183,129 @@ def _safe_browsing_policy_status(system: str) -> str:
     return {0: "disabled", 1: "standard", 2: "enhanced"}[values[0]]
 
 
+def _read_policy_file(path: Path) -> dict[str, object] | None:
+    """Read one small regular policy JSON file; symlinks and oversize files are rejected."""
+    try:
+        metadata = path.lstat()
+        if _metadata_is_reparse_point(metadata) or not stat.S_ISREG(metadata.st_mode):
+            return None
+        value = json.loads(read_bytes(path, MAX_MANIFEST_BYTES).decode("utf-8"),
+                           object_pairs_hook=_unique_json_object)
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _linux_policy_status(etc: Path) -> tuple[str, str]:
+    """ExtensionSettings and Safe Browsing status from Chrome's managed policy files.
+
+    Mirrors the Windows registry vocabulary. Only two fixed policy names are read; no
+    other policy value, extension ID or URL is retained.
+    """
+    directory = etc / LINUX_CHROME_POLICY_DIR
+    try:
+        if not directory.exists():
+            return "not-configured", "not-configured"
+        names = sorted(entry for entry in
+                       itertools.islice(directory.iterdir(), MAX_POLICY_FILES + 1)
+                       if entry.name.endswith(".json"))
+    except OSError:
+        return "unknown", "unknown"
+    if len(names) > MAX_POLICY_FILES:
+        return "unknown", "unknown"
+    configured = unknown_extension = unknown_safe = False
+    levels: list[int] = []
+    for path in names:
+        value = _read_policy_file(path)
+        if value is None:
+            unknown_extension = unknown_safe = True
+            continue
+        if "ExtensionSettings" in value:
+            if isinstance(value["ExtensionSettings"], dict):
+                configured = True
+            else:
+                unknown_extension = True
+        if "SafeBrowsingProtectionLevel" in value:
+            level = value["SafeBrowsingProtectionLevel"]
+            if type(level) is int and level in (0, 1, 2):
+                levels.append(level)
+            else:
+                unknown_safe = True
+    extension = ("configured" if configured else "unknown" if unknown_extension
+                 else "not-configured")
+    if unknown_safe:
+        return extension, "unknown"
+    if not levels:
+        return extension, "not-configured"
+    if len(set(levels)) != 1:
+        return extension, "conflicting"
+    return extension, {0: "disabled", 1: "standard", 2: "enhanced"}[levels[0]]
+
+
+def _policy_findings(extension_status: str, safe_browsing: str, *, linux: bool) -> list[Finding]:
+    """BR-009/BR-010. Windows wording is unchanged; Linux names policy files, not a registry."""
+    hives = "managed policy files" if linux else "registry hives"
+    noun = "Policy file" if linux else "Registry"
+    configured_word = "policy-file state" if linux else "registry policy"
+    check_word = "policy-file check" if linux else "registry check"
+    findings: list[Finding] = []
+    if extension_status == "configured":
+        title = "Chrome ExtensionSettings policy is present"
+        recommendation = "Review effective extension policy in chrome://policy."
+    elif extension_status == "not-configured":
+        title = f"Chrome ExtensionSettings policy was not found in the checked {hives}"
+        recommendation = ("Review extension restrictions and managed settings "
+                          "in chrome://policy.")
+    else:
+        title = "Chrome ExtensionSettings policy status is unavailable"
+        recommendation = "Review managed extension settings in chrome://policy."
+    findings.append(Finding("BR-009", Risk.INFO, title, "Chrome policy", recommendation,
+                            status=Status.UNAVAILABLE if extension_status == "unknown"
+                            else Status.OBSERVED,
+                            evidence_source=Evidence.UNAVAILABLE if extension_status == "unknown"
+                            else Evidence.POLICY,
+                            limitations=(f"{noun} presence is not the effective browser policy.",)))
+    if safe_browsing == "disabled":
+        findings.append(Finding(
+            "BR-010", Risk.HIGH,
+            "Chrome Safe Browsing policy explicitly selects no protection",
+            "Chrome security policy",
+            "Verify the effective value in chrome://policy and review the setting "
+            "in chrome://settings/security.",
+            status=Status.ISSUE, evidence_source=Evidence.POLICY,
+            limitations=(f"This is configured {configured_word}, not effective browser state.",)))
+    elif safe_browsing == "conflicting":
+        findings.append(Finding(
+            "BR-010", Risk.INFO,
+            f"Chrome Safe Browsing policy values conflict across {hives}",
+            "Chrome security policy",
+            "Review the effective value in chrome://policy; the checked "
+            f"{'policy-file' if linux else 'registry'} "
+            "values do not identify which setting is effective.",
+            status=Status.UNKNOWN, evidence_source=Evidence.POLICY,
+            limitations=("Conflicting policy values do not establish effective protection.",)))
+    elif safe_browsing in ("standard", "enhanced"):
+        findings.append(Finding(
+            "BR-010", Risk.INFO,
+            f"Chrome Safe Browsing policy is set to {safe_browsing} protection",
+            "Chrome security policy",
+            "Confirm the effective value in chrome://policy; this "
+            f"{check_word} does not include cloud policy or user preferences.",
+            status=Status.OBSERVED, evidence_source=Evidence.POLICY,
+            limitations=("Configured policy does not establish effective browser protection.",)))
+    else:
+        findings.append(Finding(
+            "BR-010", Risk.INFO,
+            "Chrome Safe Browsing effective setting is unknown",
+            "Chrome security policy",
+            "Review chrome://settings/security and chrome://policy in Chrome.",
+            status=Status.UNAVAILABLE if safe_browsing == "unknown" else Status.UNKNOWN,
+            evidence_source=Evidence.UNAVAILABLE if safe_browsing == "unknown"
+            else Evidence.POLICY,
+            limitations=("User preferences and cloud policy are not inspected.",)))
+    return findings
+
+
 class BrowserScanner:
     category = "browser"
     MAC_ROOTS: ClassVar[dict[str, str]] = {
@@ -194,6 +322,20 @@ class BrowserScanner:
         "Firefox": "AppData/Roaming/Mozilla/Firefox/Profiles",
     }
 
+    # Candidates are ordered native, Flatpak, Snap. Only the first existing root per browser
+    # is inspected; additional roots are reported (BR-014) rather than silently skipped.
+    LINUX_ROOTS: ClassVar[dict[str, tuple[str, ...]]] = {
+        "Chrome": (".config/google-chrome",
+                   ".var/app/com.google.Chrome/config/google-chrome"),
+        "Brave": (".config/BraveSoftware/Brave-Browser",
+                  ".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser"),
+        "Edge": (".config/microsoft-edge",
+                 ".var/app/com.microsoft.Edge/config/microsoft-edge"),
+        "Firefox": (".mozilla/firefox",
+                    ".var/app/org.mozilla.firefox/.mozilla/firefox",
+                    "snap/firefox/common/.mozilla/firefox"),
+    }
+
     def detect(self, context: Context) -> bool:
         return True
 
@@ -202,12 +344,16 @@ class BrowserScanner:
 
     def scan(self, context: Context) -> list[Finding]:
         findings: list[Finding] = []
-        if context.system not in ("Darwin", "Windows"):
+        if context.system not in ("Darwin", "Windows", "Linux"):
             return [Finding("BR-000", Risk.INFO, "Browser adapter is unavailable", "browser",
                             "Review browser security settings manually.",
                             status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
-                            limitations=("Browser profile discovery is implemented for macOS/Windows.",))]
-        roots = self.WINDOWS_ROOTS if context.system == "Windows" else self.MAC_ROOTS
+                            limitations=(BROWSER_PLATFORMS,))]
+        multiple_roots: set[str] = set()
+        if context.system == "Linux":
+            roots, multiple_roots = self._linux_roots(context)
+        else:
+            roots = self.WINDOWS_ROOTS if context.system == "Windows" else self.MAC_ROOTS
         chrome_found = False
         for browser, relative in roots.items():
             root = context.home / relative
@@ -227,7 +373,9 @@ class BrowserScanner:
                                     browser, "Review browser updates and security settings.",
                                     status=Status.OBSERVED, evidence_source=Evidence.METADATA,
                                     limitations=("A data directory does not establish installation or use.",)))
-            scope = ("Bounded Chrome manifest declarations; selected Windows registry policies."
+            scope = (("Bounded Chrome manifest declarations; selected managed policy files."
+                      if context.system == "Linux" else
+                      "Bounded Chrome manifest declarations; selected Windows registry policies.")
                      if browser == "Chrome" else
                      "Extension directory counts only; manifests and policies are not inspected."
                      if browser in ("Brave", "Edge") else
@@ -237,6 +385,12 @@ class BrowserScanner:
                                     status=Status.OBSERVED, evidence_source=Evidence.METADATA,
                                     limitations=(scope, "No authentication databases are read.")))
             findings.append(manual_finding(context, "extensions", browser))
+            if browser in multiple_roots:
+                findings.append(Finding("BR-014", Risk.INFO,
+                    f"More than one {browser} data directory was found", browser + " data roots",
+                    "Review the other installation's extensions in its browser UI.",
+                    status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
+                    limitations=("Only the first of native, Flatpak or Snap roots is inspected.",)))
             if browser not in ("Chrome", "Brave", "Edge"):
                 continue
             chrome_found = chrome_found or browser == "Chrome"
@@ -398,61 +552,28 @@ class BrowserScanner:
         if chrome_found:
             findings.append(manual_finding(context, "password"))
         if chrome_found and context.system == "Windows":
-            policy_status = _extension_policy_status(context.system)
-            if policy_status == "configured":
-                title = "Chrome ExtensionSettings policy is present"
-                recommendation = "Review effective extension policy in chrome://policy."
-            elif policy_status == "not-configured":
-                title = ("Chrome ExtensionSettings policy was not found in the checked "
-                         "registry hives")
-                recommendation = ("Review extension restrictions and managed settings "
-                                  "in chrome://policy.")
-            else:
-                title = "Chrome ExtensionSettings policy status is unavailable"
-                recommendation = "Review managed extension settings in chrome://policy."
-            findings.append(Finding("BR-009", Risk.INFO, title, "Chrome policy",
-                                    recommendation,
-                                    status=Status.UNAVAILABLE if policy_status == "unknown"
-                                    else Status.OBSERVED,
-                                    evidence_source=Evidence.UNAVAILABLE if policy_status == "unknown"
-                                    else Evidence.POLICY,
-                                    limitations=("Registry presence is not the effective browser policy.",)))
-            safe_browsing = _safe_browsing_policy_status(context.system)
-            if safe_browsing == "disabled":
-                findings.append(Finding(
-                    "BR-010", Risk.HIGH,
-                    "Chrome Safe Browsing policy explicitly selects no protection",
-                    "Chrome security policy",
-                    "Verify the effective value in chrome://policy and review the setting "
-                    "in chrome://settings/security.",
-                    status=Status.ISSUE, evidence_source=Evidence.POLICY,
-                    limitations=("This is configured registry policy, not effective browser state.",)))
-            elif safe_browsing == "conflicting":
-                findings.append(Finding(
-                    "BR-010", Risk.INFO,
-                    "Chrome Safe Browsing policy values conflict across registry hives",
-                    "Chrome security policy",
-                    "Review the effective value in chrome://policy; the checked registry "
-                    "values do not identify which setting is effective.",
-                    status=Status.UNKNOWN, evidence_source=Evidence.POLICY,
-                    limitations=("Conflicting policy values do not establish effective protection.",)))
-            elif safe_browsing in ("standard", "enhanced"):
-                findings.append(Finding(
-                    "BR-010", Risk.INFO,
-                    f"Chrome Safe Browsing policy is set to {safe_browsing} protection",
-                    "Chrome security policy",
-                    "Confirm the effective value in chrome://policy; this registry check "
-                    "does not include cloud policy or user preferences.",
-                    status=Status.OBSERVED, evidence_source=Evidence.POLICY,
-                    limitations=("Configured policy does not establish effective browser protection.",)))
-            else:
-                findings.append(Finding(
-                    "BR-010", Risk.INFO,
-                    "Chrome Safe Browsing effective setting is unknown",
-                    "Chrome security policy",
-                    "Review chrome://settings/security and chrome://policy in Chrome.",
-                    status=Status.UNAVAILABLE if safe_browsing == "unknown" else Status.UNKNOWN,
-                    evidence_source=Evidence.UNAVAILABLE if safe_browsing == "unknown"
-                    else Evidence.POLICY,
-                    limitations=("User preferences and cloud policy are not inspected.",)))
+            findings.extend(_policy_findings(_extension_policy_status(context.system),
+                                             _safe_browsing_policy_status(context.system),
+                                             linux=False))
+        elif chrome_found and context.system == "Linux":
+            extension_status, safe_browsing = _linux_policy_status(context.linux.etc)
+            findings.extend(_policy_findings(extension_status, safe_browsing, linux=True))
         return findings
+
+    def _linux_roots(self, context: Context) -> tuple[dict[str, str], set[str]]:
+        """Pick the first existing native/Flatpak/Snap root per browser; note extra roots."""
+        roots: dict[str, str] = {}
+        multiple: set[str] = set()
+        for browser, candidates in self.LINUX_ROOTS.items():
+            present: list[str] = []
+            for relative in candidates:
+                try:
+                    exists = (context.home / relative).is_dir()
+                except OSError:
+                    exists = True  # let the main loop report it as unavailable
+                if exists:
+                    present.append(relative)
+            roots[browser] = present[0] if present else candidates[0]
+            if len(present) > 1:
+                multiple.add(browser)
+        return roots, multiple

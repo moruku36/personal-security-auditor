@@ -6,7 +6,10 @@ findings, never raw command output or file content. Every command is local.
 
 The macOS and Windows adapters cover selected OS and network checks. Windows
 uses fixed PowerShell commands whose output is reduced to bounded status facts.
-Linux returns an explicit incomplete finding. Category scanners can be
+Linux has a read-only adapter (`linux.py`) that reduces bounded `/proc`, `/sys` and
+`/etc` reads and two fixed status commands to fixed tokens; layouts it cannot assess
+return `unknown` or `not_supported` (see [Linux checks](linux.md)). Other operating
+systems return an explicit unavailable finding. Category scanners can be
 replaced without changing reporting. `fix` is a separate path and defaults
 to a preview.
 

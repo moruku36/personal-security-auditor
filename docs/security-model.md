@@ -19,6 +19,12 @@
   `Local State`, `Secure Preferences`, history, cookies or saved credentials.
   Reports use aggregate fixed-vocabulary findings without extension IDs,
   names, host patterns, update URLs or profile paths.
+- Linux probes are read-only and unprivileged. They open a fixed set of `/proc`, `/sys`
+  and `/etc` files read-only without following a final symlink, under size caps, and run
+  only `systemctl show` and `firewall-cmd --state` by absolute path without a shell.
+  Device names, mount sources, UUIDs, IP addresses, process names and policy contents are
+  reduced to fixed tokens and never reported. Linux findings are never auto-fixable and
+  `fix` changes nothing on Linux. See [Linux checks](linux.md).
 - The app does not claim that absence of findings means the system is safe.
 - Firewall status is marked unavailable inside a known Codex sandbox because
   the macOS status command can return a misleading value there.

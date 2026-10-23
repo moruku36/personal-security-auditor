@@ -3,7 +3,7 @@ from __future__ import annotations
 import shutil
 
 from security_audit.model import Finding, Risk
-from security_audit.permissions import broad_access
+from security_audit.permissions import auto_fixable, broad_access
 from security_audit.scanners.base import Context
 
 
@@ -38,7 +38,7 @@ class CloudScanner:
                 findings.append(Finding("CL-003", Risk.HIGH,
                     f"{provider} credential file permissions are broad", "~/" + relative,
                     "Restrict access to your account after reviewing access needs.",
-                    context.system != "Windows"))
+                    auto_fixable(context.system)))
             elif exposure is None:
                 findings.append(Finding("CL-098", Risk.INFO,
                     f"{provider} credential permissions unavailable", "~/" + relative,

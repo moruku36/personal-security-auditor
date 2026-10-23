@@ -8,6 +8,7 @@ from security_audit.model import REPORT_SCHEMA_VERSION
 LEGACY_MAC = "Legacy 2026-10-06 one Mac (macOS 27.2); new features not device-validated"
 LEGACY_WINDOWS = "Legacy 2026-10-06 one PC (Windows version unrecorded); new features not device-validated"
 NOT_VALIDATED = "No documented physical-device validation"
+LINUX_NOT_VALIDATED = "No documented Linux physical-device validation; sandbox/CI runs are not device validation"
 NOTICE = (
     "Fixture coverage describes tests present in the repository, not a passing test run. "
     "CI is separate from physical-device validation. Historical runs do not validate new code. "
@@ -43,7 +44,24 @@ def rows() -> list[dict[str, str]]:
                    "implemented": "discovery unavailable; independent manual guidance only",
                    "fixtures": "aggregate manual record fixtures; no discovery adapter",
                    "physical_validation": NOT_VALIDATED})
-    result.append({"os": "Linux/other", "browser": "all",
+    result.append({"os": "Linux", "browser": "-",
+                   "implemented": ("selected OS checks (dm-crypt, ufw/firewalld, SELinux/AppArmor, "
+                                   "Secure Boot, systemd SSH units) and /proc/net TCP listeners; "
+                                   "unsupported layouts return unknown/not_supported"),
+                   "fixtures": "synthetic /proc, /sys, /etc trees and fake status commands",
+                   "physical_validation": LINUX_NOT_VALIDATED})
+    for browser in ("Chrome", "Brave", "Edge", "Firefox"):
+        implemented = (
+            "presence + bounded manifest declarations + selected managed policy files"
+            if browser == "Chrome" else
+            "presence + extension directory counts" if browser in ("Brave", "Edge") else
+            "data-directory presence only")
+        result.append({"os": "Linux", "browser": browser,
+                       "implemented": implemented + " (native and Flatpak; Firefox also Snap)",
+                       "fixtures": ("synthetic manifests/policy files and scope" if browser == "Chrome"
+                                    else "synthetic directory/scope fixtures"),
+                       "physical_validation": LINUX_NOT_VALIDATED})
+    result.append({"os": "Other", "browser": "all",
                    "implemented": "OS/network/browser adapters unavailable",
                    "fixtures": "unsupported adapter fixtures", "physical_validation": NOT_VALIDATED})
     return result

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 
-from security_audit.model import Finding, Risk
+from security_audit import linux
+from security_audit.model import Evidence, Finding, Risk, Status
 from security_audit.safety import run
 from security_audit.scanners.base import Context
 from security_audit.windows import powershell_json
@@ -22,6 +23,10 @@ $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop | ForEach-Ob
 """
 
 
+INCOMPLETE_TABLE = ("The TCP table was malformed, partly unreadable, or larger than the "
+                    "reporting bound.")
+
+
 class NetworkScanner:
     category = "network"
 
@@ -34,6 +39,8 @@ class NetworkScanner:
     def scan(self, context: Context) -> list[Finding]:
         if context.system == "Windows":
             return self._scan_windows()
+        if context.system == "Linux":
+            return self._scan_linux(context)
         if context.system != "Darwin":
             return [Finding("NET-000", Risk.INFO, "Network adapter is unavailable", "network",
                             "Inspect local listening services manually.")]
@@ -77,4 +84,30 @@ class NetworkScanner:
             findings.append(Finding("NET-001", Risk.HIGH,
                 f"TCP port {port} listens beyond loopback", location,
                 "Check its owner, firewall rule and whether remote access is needed."))
+        return findings
+
+    def _scan_linux(self, context: Context) -> list[Finding]:
+        """Read the kernel TCP tables; no command, address or process name is emitted."""
+        result = linux.tcp_listeners(context.linux)
+        if result is None:
+            return [Finding("NET-000", Risk.INFO, "Linux listener inspection unavailable",
+                            "network", "Review listening TCP ports manually.",
+                            status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
+                            limitations=("The kernel TCP table could not be read.",))]
+        endpoints, complete = result
+        limitations = ("Listening beyond loopback does not establish Internet exposure.",
+                       "Only this process's network namespace is visible; owners are not inspected.")
+        findings: list[Finding] = []
+        for port, bind in endpoints:
+            location = f"{bind if bind == '*' else 'non-loopback address'}:{port}"
+            findings.append(Finding("NET-001", Risk.HIGH,
+                f"TCP port {port} listens beyond loopback", location,
+                "Check its owner, firewall rule and whether remote access is needed.",
+                status=Status.NEEDS_REVIEW, evidence_source=Evidence.LOCAL_COMMAND,
+                limitations=limitations))
+        if not complete:
+            findings.append(Finding("NET-000", Risk.INFO, "Linux listener inspection was incomplete",
+                                    "network", "Review listening TCP ports manually.",
+                                    status=Status.UNAVAILABLE, evidence_source=Evidence.UNAVAILABLE,
+                                    limitations=(INCOMPLETE_TABLE,)))
         return findings

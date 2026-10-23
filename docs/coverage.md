@@ -16,7 +16,10 @@ source; see Actions for execution results for the exact commit.
 | Windows | Safari | No discovery adapter; independent manual guidance only | No automatic adapter fixture | None |
 | macOS adapter | OS/network | Selected hardening settings and non-loopback TCP listeners | Command states (enabled/disabled/malformed/nonzero), sandbox and listener reduction | 2026-10-06 one Mac, macOS 27.2/Python 3.11.4, old commit 20332630… |
 | Windows 10/11 adapter | OS/network | Selected hardening settings and non-loopback TCP listeners | On/off/passive/unknown states, listener validation; Windows CI local probe shapes | 2026-10-06 one PC, OS/Python/source version unrecorded in that note |
-| Linux / other | OS/network/browser | Adapters unavailable | Unsupported-platform fixtures | None |
+| Linux adapter | OS/network | Selected checks: dm-crypt root, ufw/firewalld, SELinux/AppArmor, Secure Boot, systemd SSH units; non-loopback TCP listeners from `/proc/net` | Synthetic `/proc`, `/sys`, `/etc` trees and fake status commands: every state, WSL, non-systemd, missing/malformed inputs, redaction | **None.** No Linux physical-device validation on any distribution |
+| Linux adapter | Chrome | Presence; bounded manifest declarations; selected managed policy files; aggregate user review (native and Flatpak roots) | Manifest/policy-file parser, malformed/conflicting/symlinked states, bounds/redaction, multiple-root note | None |
+| Linux adapter | Brave / Edge / Firefox | Presence; bounded extension directory counts (Brave, Edge) or presence only (Firefox); Flatpak roots, plus Snap for Firefox | Separate directory/scope cases | None |
+| Other OS | OS/network/browser | Adapters unavailable | Unsupported-platform fixtures | None |
 | Supported runtimes | New record/schema/comparison features | Explicit local result recording and ID/state snapshots | Schema compatibility, scope mismatch, invalid dates, malformed/bounded records, redaction, private writes | No new physical-device validation yet |
 
 Python 3.11 is the CI runtime on Ubuntu/macOS/Windows runners. A runner OS label
@@ -46,7 +49,12 @@ source commit, OS/browser/Python versions and scope.
 | Brave/Edge effective grants or publishers requested | automatic scope is only directory counts; manual UI review required |
 | Firefox/Safari extension inventory requested | automatic scope is presence only; manual UI review required |
 | OS command fails/returns unrecognized output or macOS firewall is sandboxed | unavailable, same individual OS check ID |
-| Unsupported OS/network/browser adapter | unavailable; no macOS fallback on Linux |
+| Unsupported OS/network/browser adapter (not macOS, Windows or Linux) | unavailable; no macOS fallback |
+| Linux root is not a mappable block device (container overlay, ZFS, network root) or the host is WSL | unavailable with a `not_supported:` limitation |
+| Linux without systemd, or booted without a visible UEFI interface | unavailable with a `not_supported:` limitation (SSH server, Secure Boot) |
+| Linux firewall manager is not ufw/firewalld, or sysfs/`systemctl` cannot be read | unknown; nftables/iptables are not read |
+| Linux `/proc/net/tcp` unreadable, malformed or over the 50-endpoint bound | unavailable, or partial findings plus an incomplete `NET-000` |
+| More than one Linux data root exists for a browser (native, Flatpak, Snap) | only the first is read; `BR-014` marks the rest unavailable |
 | Old snapshot/schema or different scan scope | comparison fails rather than claiming improvement |
 | Previously observed ID missing | not observed now, never automatically resolved |
 

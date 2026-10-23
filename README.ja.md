@@ -4,7 +4,7 @@
 
 ## 概要
 
-**自分のmacOS／Windows端末を防御するための、ローカル実行型セキュリティ確認CLI**です。
+**自分のmacOS／Windows／Linux端末を防御するための、ローカル実行型セキュリティ確認CLI**です。
 OSの保護設定、認証情報を置くファイルの権限、Chrome拡張のmanifest宣言、
 ループバック以外で待ち受けるTCPポートなどを調べ、確認すべき点と推奨対応をまとめます。
 
@@ -26,11 +26,12 @@ MacとWindows各1台での確認は、その時点の範囲に限られます。
 
 - macOSのFileVault、Firewall、Gatekeeper、SIP、Remote Login
 - Windowsのドライブ暗号化、Firewall、Defender、UAC、Secure Boot
-- ブラウザの存在、Chrome拡張manifestの限定メタデータと権限確認
+- ブラウザの存在、Chrome拡張manifestの限定メタデータと権限確認、Windows／LinuxのChrome Safe Browsing管理ポリシー
 - `.env`やシェル設定ファイルの存在・権限メタデータ（本文は読み取らない）
 - Git、SSH、クラウド認証ファイルの権限
 - 開発用CLIの存在と認証ファイルの権限
-- macOS/Windowsでローカル以外を待ち受けるTCPポートとAIエージェント設定ディレクトリ
+- Linux（読み取り専用・実機未検証）のdm-cryptルート、ufw/firewalld、SELinux/AppArmor、Secure Boot、systemdのSSH状態。対応外の構成は`unknown`／`not_supported`と表示
+- macOS/Windows/Linuxでローカル以外を待ち受けるTCPポートとAIエージェント設定ディレクトリ
 - Terminal、Markdown、JSONレポートと権限修正のプレビュー
 - Password Checkupへの案内と、結果・確認日だけのローカル記録
 - Findingの安定ID、確認状態、証拠の種類、制限事項
@@ -53,6 +54,9 @@ python3 -m pip install -e .
 WindowsではPowerShellで`py -3.11 -m pip install -e .`を実行する。
 Windowsの検査はWSLではなくWindows上で実行してね。通常のスキャンに管理者権限は不要。
 権限不足で読めない項目は「確認できない」と表示する。
+
+Linuxは通常ユーザーで実行する（rootは不要で、得られる範囲も増えない）。使い方・Linux対応表・
+ディストリビューション別の注意は[Linux checks](docs/linux.md)を参照。
 
 ## すぐ使う
 
@@ -97,13 +101,17 @@ Git管理から除外する。詳しくは[安全設計](docs/security-model.md)
 
 Telemetry、Cloud Upload、Remote API、Secret CollectionはすべてOFF。
 CIは架空の認証情報を使うfixtureと、Windows上の限定的なOS・ネットワークprobeの
-出力形式および一時レポートのACLを確認する。runner全体の監査や安全性の認定は行わない。
+出力形式および一時レポートのACLを確認する。Linuxのロジックは合成した`/proc`・`/sys`・`/etc`で試験し、runner自身の状態は見ない。runner全体の監査や安全性の認定は行わない。
 
 ## 対応OS
 
 macOSとWindows 10/11に対応。Windowsは標準搭載のWindows PowerShellを使って
-ローカルで確認する。LinuxのOS・Network検査は未実装と表示する。
-Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
+ローカルで確認する。Linuxは読み取り専用のアダプタで、`/proc`・`/sys`・`/etc`の上限付きの
+事実と固定の状態確認コマンド2つだけを使う。root権限は不要で、設定は変更しない。
+WSL、コンテナ、systemd以外のinit、非UEFI起動など判定できない構成は`unknown`／`not_supported`を返す。
+**Linuxはどのディストリビューションでも実機検証していない。**
+Windowsの検査範囲と制限は[Windows checks](docs/windows.md)、
+Linuxは[Linux checks](docs/linux.md)を参照。
 
 ## 実機での検証
 
@@ -111,20 +119,22 @@ Windowsの検査範囲と制限は[Windows checks](docs/windows.md)を参照。
 
 同日、Windows実機でもCLIのOS/browser監査と、ユーザー本人だけが読めるACLでのレポート生成を確認した。ブラウザー画面では保護状態を確認し、有効な拡張機能について画面に表示された権限・サイトアクセスを確認して、本人から提供されたStore／開発元情報と照合した。AIサービスの画面では、承認済みサイト一覧と表示中の会話に対する適用範囲を確認した。端末固有の監査値、拡張名、サイト名、アカウント識別子、スクリーンショット、レポートは公開していない。
 
+Linuxの実機検証は行っていない。Linuxの動作は合成fixtureとユニットテストだけで確認しており、サンドボックス・VM・CIでの実行は実機検証ではない。WindowsやmacOS上の結果をLinuxの検証の代わりにはしない。Google Password Checkupはどのプラットフォームでも自動化しておらず、手動の案内と本人申告の記録だけを提供する。
+
 これらは個別端末と画面に表示された範囲での、その時点の動作・表示確認であり、セキュリティ認証、他の端末やセッションの保証、悪性コードが存在しないことの証明ではない。CLIのChrome manifest検査が示すのは宣言・保存メタデータで、実効権限や提供元を独立に確定するものではない。CIは合成fixtureと限定的なWindowsローカルprobe・レポートACLを確認するが、runnerの安全性を認定するものではなく、実機確認の代替でもない。権限やsandboxの状態により、一部の項目が確認できない場合がある。
 
 ## Scanner一覧
 
 | カテゴリ | 現在の範囲 |
 | --- | --- |
-| `os` | macOS/Windowsの主要設定 |
-| `browser` | Chrome 拡張メタデータと権限、Windows Chrome の Safe Browsing 管理ポリシー |
+| `os` | macOS/Windows/Linuxの主要設定 |
+| `browser` | Chrome 拡張メタデータと権限、Windows（レジストリ）／Linux（管理ポリシーファイル）の Chrome 管理ポリシー |
 | `api` | 設定ファイルの存在と権限。本文は読まない |
 | `git` | `.gitignore`と履歴検査の案内 |
 | `ssh` | ディレクトリと鍵の権限、WindowsではACL |
 | `cloud` | CLIと認証ファイルの存在・権限、WindowsではACL |
 | `dev` | 開発用CLIと認証ファイルの存在・権限、WindowsではACL |
-| `network` | macOS/WindowsのTCP待受 |
+| `network` | macOS/Windows/LinuxのTCP待受 |
 | `ai` | エージェント設定ディレクトリの存在・権限 |
 
 実際に許可された拡張権限、MFA、passkey、Windows Hello/PIN、クラウドIAM、
@@ -140,6 +150,7 @@ Git履歴内Secretなどは手動確認が必要。本人用の[チェックリ�
 
 macOSでは`fix`はプレビュー、`fix --apply`は一部の権限を狭めるだけ。
 WindowsのACL検査は読み取り専用で、自動修正しない。
+Linuxも読み取り専用で、`fix`は変更せずその旨を表示し、Linuxのfindingを自動修正可能とは表示しない。
 キー失効、IAMやMFA変更、削除は自動実行しないよ。
 
 ## ロードマップ

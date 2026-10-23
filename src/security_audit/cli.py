@@ -113,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(content, end="")
     else:
+        if context.system == "Linux":
+            print("Linux support is read-only: no permission changes are previewed or applied.")
+            return 0
         candidates = [pair for finding in findings if (pair := target(context, finding))]
         for path, desired in candidates:
             print(f"chmod {desired:04o} {label(path, context.home)}")

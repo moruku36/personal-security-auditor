@@ -159,8 +159,10 @@ exposure.
 
 On macOS, `fix` previews permission changes and `fix --apply` tightens only
 selected file or directory permissions. On Windows, ACL findings are read-only;
-`fix` does not change them. Linux is read-only too: `fix` reports that and changes
-nothing, and Linux findings are never marked auto-fixable. The tool does not revoke credentials, change IAM or
+`fix` does not change them. Linux is read-only too: `fix` previews nothing and
+changes nothing (exit 0), `fix --apply` is unsupported and exits 2 with an error on
+stderr, and Linux findings are never marked auto-fixable. `scan` and `report` are
+unaffected. The tool does not revoke credentials, change IAM or
 MFA, delete files, or remove extensions. Review each proposed change before
 applying it.
 

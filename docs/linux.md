@@ -20,10 +20,13 @@ security-audit scan network        # non-loopback TCP listeners
 security-audit scan browser        # Chrome-family and Firefox discovery
 security-audit report --format json --output reports/latest.json   # mode 0600
 security-audit coverage            # implementation / fixture / device matrix
-security-audit fix                 # prints that Linux is read-only; nothing is changed
+security-audit fix                 # previews nothing, changes nothing (exit 0)
+security-audit fix --apply         # unsupported: error on stderr, exit 2, nothing changed
 ```
 
 Run as a normal user. Running as root is not required and gives no extra coverage.
+`scan` and `report` behave as before (exit 0). `fix` never previews or applies a change on
+Linux; `fix --apply` fails with exit 2 so automation cannot read it as a successful repair.
 `scan --full` searches only `~/Documents` and `~/Developer` for repositories; use
 `--repository PATH` for other layouts. `password-checkup`, `browser-review`,
 `--snapshot` and `--compare` behave as on macOS and Windows.

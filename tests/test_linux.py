@@ -648,12 +648,19 @@ class ReadOnlyRemediationTests(TempCase):
         for item in broad:
             self.assertFalse(item.auto_fixable)
             self.assertIsNone(target(context, item))
-        stdout = io.StringIO()
-        with (patch("pathlib.Path.home", return_value=self.home),
-              patch("security_audit.cli.Context", partial(Context, system="Linux")),
-              contextlib.redirect_stdout(stdout)):
-            self.assertEqual(main(["fix", "ssh", "--apply", "--repository", str(self.home)]), 0)
-        self.assertIn("read-only", stdout.getvalue())
+        for arguments, code in (["fix", "ssh", "--repository", str(self.home)], 0),\
+                (["fix", "ssh", "--apply", "--repository", str(self.home)], 2):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with (patch("pathlib.Path.home", return_value=self.home),
+                  patch("security_audit.cli.Context", partial(Context, system="Linux")),
+                  contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr)):
+                self.assertEqual(main(arguments), code)
+            if code:
+                self.assertIn("Unsupported", stderr.getvalue())
+                self.assertNotIn("complete", stdout.getvalue())
+            else:
+                self.assertIn("Nothing was changed", stdout.getvalue())
+                self.assertNotIn("Dry run", stdout.getvalue())
         self.assertEqual(key.stat().st_mode & 0o777, 0o644)
 
     @unittest.skipIf(os.name == "nt", "POSIX modes are not meaningful on Windows")

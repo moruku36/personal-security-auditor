@@ -114,7 +114,12 @@ def main(argv: list[str] | None = None) -> int:
             print(content, end="")
     else:
         if context.system == "Linux":
-            print("Linux support is read-only: no permission changes are previewed or applied.")
+            if args.apply:
+                print("Unsupported: Linux support is read-only, so fix --apply is not available. "
+                      "Nothing was changed.", file=sys.stderr)
+                return 2
+            print("Linux support is read-only: no permission changes are previewed. "
+                  "Nothing was changed.")
             return 0
         candidates = [pair for finding in findings if (pair := target(context, finding))]
         for path, desired in candidates:

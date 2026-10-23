@@ -72,7 +72,7 @@ security-audit scan api
 security-audit report --format markdown --output reports/latest.md
 security-audit report --format json --output reports/latest.json
 security-audit fix             # preview only
-security-audit fix --apply     # macOS only; unsupported on Linux (exit 2)
+security-audit fix --apply     # macOS only; unsupported elsewhere (exit 2)
 ```
 
 `--repository PATH` selects the repository to inspect. `--full` adds a bounded
@@ -159,9 +159,11 @@ exposure.
 
 On macOS, `fix` previews permission changes and `fix --apply` tightens only
 selected file or directory permissions. On Windows, ACL findings are read-only;
-`fix` does not change them. Linux is read-only too: `fix` previews nothing and
+`fix` does not change them and `fix --apply` exits 2 as unsupported. Linux is
+read-only too: `fix` previews nothing and
 changes nothing (exit 0), `fix --apply` is unsupported and exits 2 with an error on
-stderr, and Linux findings are never marked auto-fixable. `scan` and `report` are
+stderr, and Linux findings are never marked auto-fixable. Other unsupported OSes
+also cannot apply fixes. `scan` and `report` are
 unaffected. The tool does not revoke credentials, change IAM or
 MFA, delete files, or remove extensions. Review each proposed change before
 applying it.

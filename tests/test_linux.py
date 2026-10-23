@@ -18,6 +18,7 @@ from security_audit.coverage import rows
 from security_audit.engine import scan
 from security_audit.linux import LinuxSources
 from security_audit.model import Evidence, Finding, Risk, Status
+from security_audit.permissions import auto_fixable
 from security_audit.remediation import target
 from security_audit.reporting import as_json
 from security_audit.scanners.base import Context
@@ -645,16 +646,26 @@ class ReadOnlyAndNoSecretTests(TempCase):
 
 
 class ReadOnlyRemediationTests(TempCase):
-    def test_linux_fix_apply_is_unsupported_on_every_test_platform(self) -> None:
-        stdout, stderr = io.StringIO(), io.StringIO()
-        with (patch("pathlib.Path.home", return_value=self.home),
-              patch("security_audit.cli.Context", partial(Context, system="Linux")),
-              patch("security_audit.cli.scan", return_value=[]),
-              contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr)):
-            self.assertEqual(main(["fix", "--apply", "--repository", str(self.home)]), 2)
-        self.assertIn("Unsupported", stderr.getvalue())
-        self.assertIn("Nothing was changed", stderr.getvalue())
-        self.assertNotIn("complete", stdout.getvalue())
+    def test_only_macos_can_offer_permission_changes(self) -> None:
+        self.assertTrue(auto_fixable("Darwin"))
+        for system in ("Linux", "Windows", "FreeBSD"):
+            with self.subTest(system=system):
+                self.assertFalse(auto_fixable(system))
+                finding = Finding("SSH-002", Risk.HIGH, "test", "~/.ssh/id_test", "review")
+                self.assertIsNone(target(Context(self.home, self.home, system=system), finding))
+
+    def test_non_mac_fix_apply_is_unsupported_on_every_test_platform(self) -> None:
+        for system in ("Linux", "Windows", "FreeBSD"):
+            with self.subTest(system=system):
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with (patch("pathlib.Path.home", return_value=self.home),
+                      patch("security_audit.cli.Context", partial(Context, system=system)),
+                      patch("security_audit.cli.scan", return_value=[]),
+                      contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr)):
+                    self.assertEqual(main(["fix", "--apply", "--repository", str(self.home)]), 2)
+                self.assertIn("Unsupported", stderr.getvalue())
+                self.assertIn("Nothing was changed", stderr.getvalue())
+                self.assertNotIn("complete", stdout.getvalue())
 
     @unittest.skipIf(os.name == "nt", "POSIX modes are not meaningful on Windows")
     def test_linux_reports_no_fixable_finding_and_fix_changes_nothing(self) -> None:

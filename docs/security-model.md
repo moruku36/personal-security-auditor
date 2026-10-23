@@ -28,8 +28,8 @@
 - The app does not claim that absence of findings means the system is safe.
 - Firewall status is marked unavailable inside a known Codex sandbox because
   the macOS status command can return a misleading value there.
-- `fix` changes only POSIX permissions, only when `--apply` is explicitly
-  supplied. Windows ACLs are never changed by `fix`.
+- `fix` changes only macOS POSIX permissions, only when `--apply` is explicitly
+  supplied. Other platforms reject `fix --apply` with exit 2.
 
 ## Limitations
 

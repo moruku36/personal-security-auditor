@@ -17,5 +17,5 @@ def broad_access(path: Path, system: str) -> bool | None:
 
 
 def auto_fixable(system: str) -> bool:
-    """Only macOS/POSIX-preview platforms may offer chmod; Windows and Linux are read-only."""
-    return system not in ("Windows", "Linux")
+    """Only macOS may offer chmod; all other platforms are read-only."""
+    return system == "Darwin"

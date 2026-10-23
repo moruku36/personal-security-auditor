@@ -65,7 +65,7 @@ security-audit scan --full
 security-audit scan api
 security-audit report --format markdown --output reports/latest.md
 security-audit fix            # プレビューのみ
-security-audit fix --apply    # macOSのみ。Linuxでは非対応（終了コード2）
+security-audit fix --apply    # macOSのみ。その他のOSでは非対応（終了コード2）
 ```
 
 ## 手動確認と前回比較
@@ -149,7 +149,7 @@ Git履歴内Secretなどは手動確認が必要。本人用の[チェックリ�
 ## 修正
 
 macOSでは`fix`はプレビュー、`fix --apply`は一部の権限を狭めるだけ。
-WindowsのACL検査は読み取り専用で、自動修正しない。
+WindowsのACL検査は読み取り専用で、自動修正しない。`fix --apply`は非対応として終了コード2を返す。
 Linuxも読み取り専用で、`fix`はプレビューも変更もせず（終了コード0）、`fix --apply`は未対応としてstderrにエラーを出し終了コード2で終わる。
 Linuxのfindingを自動修正可能とは表示しない。`scan`と`report`には影響しない。
 キー失効、IAMやMFA変更、削除は自動実行しないよ。

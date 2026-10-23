@@ -59,20 +59,25 @@ class Tree:
         self.calls.append(argv)
         return self._runner(argv)
 
+    @staticmethod
+    def block_path(sys_root: Path, device: tuple[int, int]) -> Path:
+        # The synthetic tree uses a portable name; production reads major:minor.
+        return sys_root / "dev" / "block" / f"{device[0]}_{device[1]}"
+
     @property
     def sources(self) -> LinuxSources:
         return LinuxSources(
             proc=self.base / "proc", sys=self.base / "sys", etc=self.base / "etc",
             runtime=self.base / "run", systemctl=(str(self.systemctl),),
             firewall_cmd=(str(self.firewall_cmd),), runner=self.run,
-            resolve_device=lambda path: self.devices.get(path))
+            resolve_device=lambda path: self.devices.get(path), block_path=self.block_path)
 
     def context(self, home: Path) -> Context:
         return Context(home, home, system="Linux", linux=self.sources)
 
     def block(self, major: int, minor: int, *, uuid: str | None = None,
               slaves: tuple[tuple[str, int, int], ...] = ()) -> None:
-        node = self.base / "sys" / "dev" / "block" / f"{major}:{minor}"
+        node = self.block_path(self.base / "sys", (major, minor))
         node.mkdir(parents=True, exist_ok=True)
         if uuid is not None:
             put(node / "dm" / "uuid", uuid + "\n")
@@ -94,8 +99,11 @@ class TempCase(unittest.TestCase):
         self.home.mkdir()
 
 
-@unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
 class DiskEncryptionTests(TempCase):
+    def test_production_block_path_uses_sysfs_major_minor_name(self) -> None:
+        self.assertEqual(linux._block_path(self.base / "sys", (253, 0)),
+                         self.base / "sys" / "dev" / "block" / "253:0")
+
     def test_dm_crypt_directly_under_root_is_on(self) -> None:
         tree = Tree(self.base, devices={"/dev/mapper/root": (253, 0)})
         tree.root_mount("/dev/mapper/root")
@@ -582,7 +590,6 @@ class ReadOnlyAndNoSecretTests(TempCase):
             put(self.home / relative, "TOKEN=" + CANARY)
         return tree
 
-    @unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
     def test_full_linux_scan_never_reports_values_or_opens_credential_files(self) -> None:
         tree = self.build()
         opened: list[Path] = []
@@ -630,7 +637,6 @@ class ReadOnlyAndNoSecretTests(TempCase):
         self.assertEqual(described.limitations,
                          ("Listening beyond loopback does not establish Internet exposure.",))
 
-    @unittest.skipIf(os.name == "nt", "Windows cannot create sysfs major:minor fixture paths")
     def test_all_linux_findings_carry_explicit_evidence_and_status(self) -> None:
         tree = self.build()
         for item in scan(tree.context(self.home), "os") + scan(tree.context(self.home), "network"):

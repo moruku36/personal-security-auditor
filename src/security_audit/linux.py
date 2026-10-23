@@ -22,6 +22,7 @@ from security_audit.safety import run
 
 Runner = Callable[[list[str]], tuple[int, str]]
 DeviceResolver = Callable[[str], tuple[int, int] | None]
+BlockPath = Callable[[Path, tuple[int, int]], Path]
 
 MAX_TEXT_BYTES = 4096
 MAX_MOUNTINFO_BYTES = 2_000_000
@@ -54,6 +55,10 @@ def _resolve_block_device(path: str) -> tuple[int, int] | None:
     return os.major(metadata.st_rdev), os.minor(metadata.st_rdev)
 
 
+def _block_path(sys_root: Path, device: tuple[int, int]) -> Path:
+    return sys_root / "dev" / "block" / f"{device[0]}:{device[1]}"
+
+
 @dataclass(frozen=True)
 class LinuxSources:
     """Where probes read from. Tests inject synthetic trees; production uses the host."""
@@ -66,6 +71,7 @@ class LinuxSources:
     firewall_cmd: tuple[str, ...] = ("/usr/bin/firewall-cmd", "/usr/sbin/firewall-cmd")
     runner: Runner = run
     resolve_device: DeviceResolver = _resolve_block_device
+    block_path: BlockPath = _block_path
 
 
 def read_bytes(path: Path, limit: int, *, prefix: bool = False) -> bytes:
@@ -144,7 +150,7 @@ def _parse_device_numbers(text: str) -> tuple[int, int] | None:
     return int(major), int(minor)
 
 
-def _crypt_layer_below(sys_root: Path, start: tuple[int, int]) -> str:
+def _crypt_layer_below(source: LinuxSources, start: tuple[int, int]) -> str:
     """Walk block-device slaves from the root device looking for a dm-crypt target."""
     pending = [start]
     seen: set[tuple[int, int]] = set()
@@ -155,7 +161,7 @@ def _crypt_layer_below(sys_root: Path, start: tuple[int, int]) -> str:
         if len(seen) >= MAX_BLOCK_NODES:
             return "unknown"
         seen.add(node)
-        base = sys_root / "dev" / "block" / f"{node[0]}:{node[1]}"
+        base = source.block_path(source.sys, node)
         try:
             if not base.is_dir():
                 return "unknown"
@@ -198,7 +204,7 @@ def disk_encryption(source: LinuxSources) -> str:
     if device is None:
         # overlay/tmpfs/network/ZFS roots or a node that cannot be resolved here.
         return "not_supported"
-    return _crypt_layer_below(source.sys, device)
+    return _crypt_layer_below(source, device)
 
 
 # --- firewall ---------------------------------------------------------------

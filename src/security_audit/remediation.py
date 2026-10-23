@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from security_audit.model import Finding
+from security_audit.permissions import auto_fixable
 from security_audit.safety import mode
 from security_audit.scanners.base import Context
 
@@ -14,7 +15,7 @@ TARGET_MODES = {"SSH-001": 0o700, "SSH-002": 0o600,
 
 
 def target(context: Context, finding: Finding) -> tuple[Path, int] | None:
-    if context.system == "Windows":
+    if not auto_fixable(context.system):
         return None
     desired = TARGET_MODES.get(finding.code)
     if desired is None or not finding.location.startswith("~/"):

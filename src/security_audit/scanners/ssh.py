@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from security_audit.model import Finding, Risk
-from security_audit.permissions import broad_access
+from security_audit.permissions import auto_fixable, broad_access
 from security_audit.safety import label
 from security_audit.scanners.base import Context
 
@@ -22,7 +22,7 @@ class SSHScanner:
         if root_exposure:
             findings.append(Finding("SSH-001", Risk.HIGH, "SSH directory permissions are broad",
                 "~/.ssh", "Restrict directory access after reviewing access needs.",
-                context.system != "Windows"))
+                auto_fixable(context.system)))
         elif root_exposure is None:
             findings.append(Finding("SSH-098", Risk.INFO, "SSH directory permissions unavailable",
                 "~/.ssh", "Review directory permissions manually."))
@@ -39,7 +39,7 @@ class SSHScanner:
                 if exposure:
                     findings.append(Finding("SSH-002", Risk.HIGH, "SSH private key permissions are broad",
                         label(path, context.home), "Restrict key access after reviewing access needs.",
-                        context.system != "Windows"))
+                        auto_fixable(context.system)))
                 elif exposure is None:
                     findings.append(Finding("SSH-098", Risk.INFO,
                         "SSH private key permissions unavailable", label(path, context.home),

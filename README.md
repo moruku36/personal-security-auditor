@@ -4,7 +4,7 @@
 
 ## Overview
 
-A local-first CLI for **defensive security review of your own macOS or Windows
+A local-first CLI for **defensive security review of your own macOS, Windows or Linux
 workstation**. It flags selected OS hardening states, credential-file permissions,
 Chrome extension manifest declarations, and non-loopback TCP listeners, then
 produces local findings and recommendations.
@@ -29,11 +29,12 @@ manual review, while keeping sensitive values and host-specific reports local.
 
 - macOS FileVault, firewall, Gatekeeper, SIP and Remote Login checks
 - Windows drive encryption, active firewall, Defender, UAC and Secure Boot checks
-- Browser presence, bounded Chrome extension manifest metadata and permission review flags, and Windows Safe Browsing policy checks
+- Browser presence, bounded Chrome extension manifest metadata and permission review flags, and Windows/Linux Chrome Safe Browsing policy checks
 - Candidate `.env` and shell configuration file presence and permission metadata; file contents are not read
 - Git repository hygiene, SSH and cloud credential file permissions
 - Developer CLI presence and credential-store file permissions
-- Non-loopback TCP listeners on macOS and Windows, and AI agent directory permissions
+- Linux (read-only, not device-validated): dm-crypt root, ufw/firewalld, SELinux/AppArmor, Secure Boot and systemd SSH state; unsupported layouts report `unknown`/`not_supported`
+- Non-loopback TCP listeners on macOS, Windows and Linux, and AI agent directory permissions
 - Terminal, Markdown and JSON reports; conservative permission fix preview
 - Password Checkup guidance and local aggregate result/date recording
 - Versioned findings with stable IDs, explicit states, evidence and limitations
@@ -59,6 +60,9 @@ native Windows, not WSL, to use Windows security checks. Administrator rights
 are not required for a basic scan; Secure Boot or some other statuses may be
 reported unavailable without them.
 
+On Linux, run it as a normal user (root is neither needed nor useful). See
+[Linux checks](docs/linux.md) for usage, the Linux support table and distribution notes.
+
 ## Quick Start
 
 ```sh
@@ -68,7 +72,7 @@ security-audit scan api
 security-audit report --format markdown --output reports/latest.md
 security-audit report --format json --output reports/latest.json
 security-audit fix             # preview only
-security-audit fix --apply     # permission changes shown by preview
+security-audit fix --apply     # macOS only; unsupported elsewhere (exit 2)
 ```
 
 `--repository PATH` selects the repository to inspect. `--full` adds a bounded
@@ -110,28 +114,33 @@ incomplete; a clean report is not a security certification.
 
 Telemetry: off. Cloud upload: off. Remote API: off. Secret collection: off.
 Commands run locally. CI uses fake credential fixtures, plus Windows-only local
-OS/network probe-shape and temporary-report ACL checks. It does not produce a
-comprehensive audit or security verdict for the runner.
+OS/network probe-shape and temporary-report ACL checks; Linux logic runs against
+synthetic `/proc`, `/sys` and `/etc` trees, never the runner's real state. It does
+not produce a comprehensive audit or security verdict for the runner.
 
 ## Supported Platforms
 
 macOS and Windows 10/11 are supported. Windows checks use built-in Windows
-PowerShell and local APIs. Linux reports OS and network coverage as incomplete.
-Neither platform sends scan data to a remote service.
-See [Windows checks and limits](docs/windows.md) before interpreting results.
+PowerShell and local APIs. Linux has a read-only adapter that reads bounded
+`/proc`, `/sys` and `/etc` facts and two fixed status commands; it needs no root,
+changes nothing, and returns `unknown` or `not_supported` for layouts it cannot
+assess (WSL, containers, non-systemd init, non-UEFI boot). **Linux has not been
+validated on a physical device on any distribution.** No platform sends scan data
+to a remote service. See [Windows checks and limits](docs/windows.md) and
+[Linux checks and limits](docs/linux.md) before interpreting results.
 
 ## Scanners
 
 | Category | Current coverage |
 | --- | --- |
-| `os` | Selected macOS and Windows hardening states |
-| `browser` | Browser directories, bounded Chrome manifest metadata, and Windows policy presence |
+| `os` | Selected macOS, Windows and Linux hardening states |
+| `browser` | Browser directories, bounded Chrome manifest metadata, and Windows registry / Linux managed policy presence |
 | `api` | Candidate configuration file presence and permissions; no file content |
 | `git` | `.gitignore` presence and history scan reminder |
 | `ssh` | Directory and key permissions or Windows ACL review |
 | `cloud` | CLI presence and credential file permissions or Windows ACL review |
 | `dev` | Developer CLI presence and local credential file permissions or Windows ACL review |
-| `network` | Non-loopback TCP listeners on macOS and Windows |
+| `network` | Non-loopback TCP listeners on macOS, Windows and Linux |
 | `ai` | Agent directory presence and permissions |
 
 Effective extension grants, extension publisher identity, browser update status,
@@ -150,7 +159,12 @@ exposure.
 
 On macOS, `fix` previews permission changes and `fix --apply` tightens only
 selected file or directory permissions. On Windows, ACL findings are read-only;
-`fix` does not change them. The tool does not revoke credentials, change IAM or
+`fix` does not change them and `fix --apply` exits 2 as unsupported. Linux is
+read-only too: `fix` previews nothing and
+changes nothing (exit 0), `fix --apply` is unsupported and exits 2 with an error on
+stderr, and Linux findings are never marked auto-fixable. Other unsupported OSes
+also cannot apply fixes. `scan` and `report` are
+unaffected. The tool does not revoke credentials, change IAM or
 MFA, delete files, or remove extensions. Review each proposed change before
 applying it.
 
@@ -159,6 +173,8 @@ applying it.
 On 2026-10-06, the macOS scan and permission-fix flow completed on one physical Mac running macOS 27.2 with Python 3.11.4, using auditor source commit `20332630d64626a421b5508244cc002bdd64eb44`. A follow-up scan completed successfully. Host-specific findings and the report remain local and are not published here.
 
 On 2026-10-06, the CLI's OS and browser scans also completed on one physical Windows PC, and creation of a report with a user-only ACL was confirmed. A manual browser UI review checked the visible protection state and reviewed enabled extensions' displayed permissions/site access against publisher and store/developer information supplied for verification. An AI-service UI review covered its approved-site list and the scope shown for the conversation on screen. Host-specific findings, extension and site names, account identifiers, screenshots and reports are not published here.
+
+No Linux physical-device validation has been performed. Linux behavior is covered by synthetic fixtures and unit tests only; sandbox, VM and CI runs are not device validation, and no result from a Windows or macOS host stands in for one. Google Password Checkup is not automated on any platform; it remains manual guidance plus a user-reported record.
 
 These are point-in-time execution and UI checks on individual hosts and visible contexts. They are not a security certification, a guarantee for other machines or sessions, proof of absence of malicious code, or a compatibility guarantee. The CLI's Chrome manifest scan reports declarations and stored metadata; it does not independently establish effective grants or publisher identity. CI combines synthetic fixtures with limited Windows local probes and report-ACL checks; it does not certify the runner or replace physical-device validation. Some checks may be unavailable depending on host permissions or sandboxing.
 

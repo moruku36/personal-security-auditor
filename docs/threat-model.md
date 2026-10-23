@@ -6,6 +6,12 @@ service, or a compromised extension. Trust boundary: local filesystem and
 subprocess output are untrusted. The CLI must not relay them verbatim to
 terminal, reports, CI, or a remote service.
 
+On Linux the adapter trusts only fixed kernel and configuration paths under size caps.
+A same-user process cannot change kernel-provided facts, but it can alter user-owned
+files, the environment or a `PATH` lookup; commands use absolute paths. Facts from
+`/proc` and `/sys` describe the current mount and network namespace, so a container
+sees its own view. See [Linux checks](linux.md).
+
 Residual risks: a same-user malicious process can read process memory; metadata
 alone misses many real leaks; port binding does not prove Internet exposure;
 directory permissions do not describe all agent tool permissions. Findings are

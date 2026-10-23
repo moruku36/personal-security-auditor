@@ -41,7 +41,8 @@ def scan(context: Context, category: str | None = None) -> list[Finding]:
 
 def _describe(item: Finding, category: str) -> Finding:
     """Add bounded evidence labels to legacy scanners without parsing prose."""
-    if category in ("os", "browser"):
+    if category in ("os", "browser") or item.evidence_source != Evidence.MANUAL:
+        # os/browser and any scanner that already labels its own evidence (Linux adapter).
         return item
     unavailable = {"API-098", "SSH-098", "CL-098", "DEV-098", "AI-098", "NET-000"}
     issues = {"API-002", "SSH-001", "SSH-002", "CL-003", "DEV-003", "AI-002", "GIT-001"}

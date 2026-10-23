@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from security_audit.model import Finding, Risk
-from security_audit.permissions import broad_access
+from security_audit.permissions import auto_fixable, broad_access
 from security_audit.scanners.base import Context
 
 
@@ -27,7 +27,7 @@ class AIAgentScanner:
                 findings.append(Finding("AI-002", Risk.MEDIUM,
                     "Agent configuration directory permissions are broad", "~/" + name,
                     "Restrict directory access after reviewing shared workflows.",
-                    context.system != "Windows"))
+                    auto_fixable(context.system)))
             elif exposure is None:
                 findings.append(Finding("AI-098", Risk.INFO,
                     "Agent directory permissions unavailable", "~/" + name,

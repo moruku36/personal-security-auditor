@@ -113,6 +113,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(content, end="")
     else:
+        if context.system != "Darwin":
+            if args.apply:
+                print("Unsupported: permission changes are available only on macOS. "
+                      "Nothing was changed.", file=sys.stderr)
+                return 2
+            print("Permission changes are available only on macOS: no changes are previewed. "
+                  "Nothing was changed.")
+            return 0
         candidates = [pair for finding in findings if (pair := target(context, finding))]
         for path, desired in candidates:
             print(f"chmod {desired:04o} {label(path, context.home)}")

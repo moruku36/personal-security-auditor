@@ -239,11 +239,16 @@ class ReviewFeaturesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory).resolve()
             (home / BrowserScanner.MAC_ROOTS["Chrome"]).mkdir(parents=True)
-            finding = BrowserScanner().scan(Context(home, home, system="Linux"))[0]
+            # Platforms without an adapter stay explicitly unavailable.
+            finding = BrowserScanner().scan(Context(home, home, system="FreeBSD"))[0]
             self.assertEqual(finding.code, "BR-000")
             self.assertEqual(finding.status, Status.UNAVAILABLE)
-            self.assertEqual(OSScanner().scan(Context(home, home, system="Linux"))[0].status,
+            self.assertEqual(OSScanner().scan(Context(home, home, system="FreeBSD"))[0].status,
                              Status.UNAVAILABLE)
+            # Linux has its own adapter and never reads the macOS location.
+            linux = BrowserScanner().scan(Context(home, home, system="Linux"))
+            self.assertFalse(any(item.code == "BR-001" for item in linux))
+            self.assertTrue(any(item.code == "BR-013" for item in linux))
 
     def test_windows_os_unknown_off_and_on_keep_check_identity(self) -> None:
         context = Context(Path("synthetic"), Path("synthetic"), system="Windows")

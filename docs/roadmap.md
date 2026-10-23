@@ -19,7 +19,8 @@ remediation remain future work.
 The CLI orchestrates independent scanners through `detect`, `scan` and
 `recommendations`. Findings are immutable, and reporting consumes findings
 rather than raw command output or file contents. macOS and Windows have selected
-OS adapters; Linux coverage is explicitly incomplete. Browser coverage is
+OS adapters; the Linux adapter is read-only, fixture-tested and not device-validated,
+and unsupported layouts return unknown or not_supported. Browser coverage is
 uneven: Chrome has bounded manifest and selected Windows policy checks; Brave
 and Edge are currently counted for extension directories, while Firefox is
 detected for presence. These are different coverage levels, not interchangeable

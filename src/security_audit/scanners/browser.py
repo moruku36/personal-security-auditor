@@ -204,15 +204,18 @@ def _linux_policy_status(etc: Path) -> tuple[str, str]:
     """
     directory = etc / LINUX_CHROME_POLICY_DIR
     try:
+        if any(path.is_symlink() for path in
+               (etc, etc / "opt", etc / "opt" / "chrome",
+                etc / "opt" / "chrome" / "policies", directory)):
+            return "unknown", "unknown"
         if not directory.exists():
             return "not-configured", "not-configured"
-        names = sorted(entry for entry in
-                       itertools.islice(directory.iterdir(), MAX_POLICY_FILES + 1)
-                       if entry.name.endswith(".json"))
+        entries = list(itertools.islice(directory.iterdir(), MAX_POLICY_FILES + 1))
     except OSError:
         return "unknown", "unknown"
-    if len(names) > MAX_POLICY_FILES:
+    if len(entries) > MAX_POLICY_FILES:
         return "unknown", "unknown"
+    names = sorted(entry for entry in entries if entry.name.endswith(".json"))
     configured = unknown_extension = unknown_safe = False
     levels: list[int] = []
     for path in names:

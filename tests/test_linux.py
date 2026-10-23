@@ -540,6 +540,20 @@ class BrowserLinuxTests(TempCase):
         self.policy("p.json", '{"ExtensionSettings": "text"}')
         self.assertEqual(_linux_policy_status(etc)[0], "unknown")
 
+    def test_policy_directory_entry_cap_is_unknown(self) -> None:
+        for index in range(51):
+            self.policy(f"ignored-{index}.txt", "not json")
+        self.assertEqual(_linux_policy_status(self.base / "etc"), ("unknown", "unknown"))
+
+    @unittest.skipIf(os.name == "nt", "symlink creation needs privileges on Windows")
+    def test_symlinked_policy_directory_is_not_followed(self) -> None:
+        outside = self.base / "outside"
+        put(outside / "p.json", '{"SafeBrowsingProtectionLevel": 2}')
+        parent = self.base / "etc" / "opt" / "chrome" / "policies"
+        parent.mkdir(parents=True)
+        (parent / "managed").symlink_to(outside, target_is_directory=True)
+        self.assertEqual(_linux_policy_status(self.base / "etc"), ("unknown", "unknown"))
+
     @unittest.skipIf(os.name == "nt", "symlink creation needs privileges on Windows")
     def test_symlinked_policy_file_is_not_followed(self) -> None:
         outside = put(self.base / "outside.json", '{"SafeBrowsingProtectionLevel": 2}')
